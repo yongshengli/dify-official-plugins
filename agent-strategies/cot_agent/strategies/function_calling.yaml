@@ -43,6 +43,13 @@ parameters:
       en_US: Query
       zh_Hans: 查询
       pt_BR: Query
+  - name: test
+    type: string
+    required: true
+    label:
+      en_US: Test
+      zh_Hans: 测试
+      pt_BR: Test
 extra:
   python:
     source: strategies/function_calling.py
