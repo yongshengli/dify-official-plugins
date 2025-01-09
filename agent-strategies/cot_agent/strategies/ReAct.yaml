@@ -51,11 +51,8 @@ parameters:
       zh_Hans: 最大迭代次数
       pt_BR: Maxium Iterations
     default: 3
-output_schema:
-  type: object
-  properties:
-    llm:
-      type: string
+    min: 1
+    max: 30
 extra:
   python:
     source: strategies/ReAct.py

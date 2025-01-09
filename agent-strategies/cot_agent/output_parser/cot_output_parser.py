@@ -38,12 +38,16 @@ class CotAgentOutputParser:
             except:
                 return json_str or ""
 
-        def extra_json_from_code_block(code_block) -> Generator[Union[str, AgentScratchpadUnit.Action], None, None]:
+        def extra_json_from_code_block(
+            code_block,
+        ) -> Generator[Union[str, AgentScratchpadUnit.Action], None, None]:
             code_blocks = re.findall(r"```(.*?)```", code_block, re.DOTALL)
             if not code_blocks:
                 return
             for block in code_blocks:
-                json_text = re.sub(r"^[a-zA-Z]+\n", "", block.strip(), flags=re.MULTILINE)
+                json_text = re.sub(
+                    r"^[a-zA-Z]+\n", "", block.strip(), flags=re.MULTILINE
+                )
                 yield parse_action(json_text)
 
         code_block_cache = ""

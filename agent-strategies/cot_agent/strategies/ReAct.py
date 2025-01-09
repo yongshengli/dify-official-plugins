@@ -153,7 +153,6 @@ class ReActAgentStrategy(AgentStrategy):
                 prompt_messages=prompt_messages,
                 stream=True,
                 stop=stop,
-                tools=prompt_messages_tools,
             )
 
             usage_dict = {}

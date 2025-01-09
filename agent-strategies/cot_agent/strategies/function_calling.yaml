@@ -51,6 +51,8 @@ parameters:
       zh_Hans: 最大迭代次数
       pt_BR: Maxium Iterations
     default: 3
+    max: 30
+    min: 1
 extra:
   python:
     source: strategies/function_calling.py
