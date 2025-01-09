@@ -1,7 +1,7 @@
 version: 0.0.3
 type: plugin
 author: "langgenius"
-name: "Fish Audio"
+name: "fishaudio"
 description:
   en_US: Models provided by Fish Audio, currently support TTS and ASR.
   zh_Hans: Fish Audio 提供的模型，目前支持 TTS 和 ASR。
