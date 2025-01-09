@@ -15,7 +15,7 @@ meta:
     language: python
     version: '3.12'
   version: 0.0.1
-name: Fish Audio Tool
+name: fish_audio_tool
 plugins:
   tools:
     - provider/fishaudio.yaml
