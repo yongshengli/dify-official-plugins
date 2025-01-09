@@ -1,13 +1,13 @@
-﻿provider: fishaudio
+﻿provider: Fish Audio
 label:
   en_US: Fish Audio
 description:
-  en_US: Models provided by Fish Audio, currently only support TTS.
-  zh_Hans: Fish Audio 提供的模型，目前仅支持 TTS。
+  en_US: Models provided by Fish Audio, currently only support TTS and ASR.
+  zh_Hans: Fish Audio 提供的模型，目前支持 TTS 和 ASR。
 icon_small:
-  en_US: fishaudio_s_en.svg
+  en_US: fishaudio.svg
 icon_large:
-  en_US: fishaudio_l_en.svg
+  en_US: fishaudio.svg
 background: "#E5E7EB"
 help:
   title:
