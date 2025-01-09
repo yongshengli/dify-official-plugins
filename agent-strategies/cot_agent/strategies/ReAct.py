@@ -1,5 +1,6 @@
 import contextlib
 import json
+import time
 from collections.abc import Generator, Mapping
 from typing import Any, Optional, cast
 
@@ -32,7 +33,7 @@ class ReActParams(BaseModel):
     model: AgentModelConfig
     tools: list[ToolEntity] | None
     inputs: dict[str, Any] = {}
-    max_iterations: int = 5
+    maximum_iterations: int = 3
 
 
 class AgentPromptEntity(BaseModel):
@@ -111,7 +112,7 @@ class ReActAgentStrategy(AgentStrategy):
         )
 
         iteration_step = 1
-        max_iteration_steps = react_params.max_iterations + 1
+        max_iteration_steps = react_params.maximum_iterations + 1
 
         # convert tools into ModelRuntime Tool format
         prompt_messages_tools = self._init_prompt_tools(tools)
@@ -124,7 +125,16 @@ class ReActAgentStrategy(AgentStrategy):
         while run_agent_state and iteration_step <= max_iteration_steps:
             # continue to run until there is not any tool call
             run_agent_state = False
-
+            round_started_at = time.perf_counter()
+            round_log = self.create_log_message(
+                label=f"ROUND {iteration_step}",
+                data={},
+                metadata={
+                    "started_at": round_started_at,
+                },
+                status=ToolInvokeMessage.LogMessage.LogStatus.START,
+            )
+            yield round_log
             if iteration_step == max_iteration_steps:
                 # the last iteration, remove all tools
                 self._prompt_messages_tools = []
@@ -158,13 +168,15 @@ class ReActAgentStrategy(AgentStrategy):
                 action=None,
             )
 
-            # publish agent thought if it's first iteration
-            root = self.create_log_message(
-                label=f"Round {iteration_step}",
-                data={"thought": f"thought{iteration_step} start"},
+            model_started_at = time.perf_counter()
+            model_log = self.create_log_message(
+                label=f"{model.model} Thought",
+                data={},
+                metadata={"start_at": model_started_at, "provider": model.provider},
+                parent=round_log,
                 status=ToolInvokeMessage.LogMessage.LogStatus.START,
             )
-            yield root
+            yield model_log
 
             for chunk in react_chunks:
                 if isinstance(chunk, AgentScratchpadUnit.Action):
@@ -197,15 +209,27 @@ class ReActAgentStrategy(AgentStrategy):
 
             if not scratchpad.is_final():
                 pass
-            thought = self.create_log_message(
-                label="Thought",
+            yield self.finish_log_message(
+                log=model_log,
                 data={
-                    "thought": scratchpad.thought,
-                    "token_usage": usage_dict["usage"],
+                    "output": scratchpad.agent_response,
                 },
-                parent=root,
+                metadata={
+                    "started_at": model_started_at,
+                    "finished_at": time.perf_counter(),
+                    "elapsed_time": time.perf_counter() - model_started_at,
+                    "provider": model.provider,
+                    "total_price": usage_dict["usage"].total_price
+                    if usage_dict["usage"]
+                    else 0,
+                    "currency": usage_dict["usage"].currency
+                    if usage_dict["usage"]
+                    else "",
+                    "total_tokens": usage_dict["usage"].total_tokens
+                    if usage_dict["usage"]
+                    else 0,
+                },
             )
-            yield thought
             if not scratchpad.action:
                 final_answer = ""
             else:
@@ -223,6 +247,21 @@ class ReActAgentStrategy(AgentStrategy):
                 else:
                     run_agent_state = True
                     # action is tool call, invoke tool
+                    tool_call_started_at = time.perf_counter()
+                    tool_name = scratchpad.action.action_name
+                    tool_call_log = self.create_log_message(
+                        label=f"CALL {tool_name}",
+                        data={},
+                        metadata={
+                            "started_at": time.perf_counter(),
+                            "provider": tool_instances[tool_name].identity.provider
+                            if tool_instances.get(tool_name)
+                            else "",
+                        },
+                        parent=round_log,
+                        status=ToolInvokeMessage.LogMessage.LogStatus.START,
+                    )
+                    yield tool_call_log
                     tool_invoke_response, tool_invoke_meta = self._handle_invoke_action(
                         action=scratchpad.action,
                         tool_instances=tool_instances,
@@ -230,16 +269,19 @@ class ReActAgentStrategy(AgentStrategy):
                     )
                     scratchpad.observation = tool_invoke_response
                     scratchpad.agent_response = tool_invoke_response
-                    yield self.create_log_message(
-                        label=f"{scratchpad.action.action_name} invoke",
-                        parent=root,
+                    yield self.finish_log_message(
+                        log=tool_call_log,
                         data={
-                            "input": {
-                                "tool_name": scratchpad.action.action_name,
-                                "tool_input": scratchpad.action.action_input,
-                            },
                             "output": tool_invoke_response,
                             "meta": tool_invoke_meta.to_dict(),
+                        },
+                        metadata={
+                            "started_at": tool_call_started_at,
+                            "provider": tool_instances[tool_name].identity.provider
+                            if tool_instances.get(tool_name)
+                            else "",
+                            "finished_at": time.perf_counter(),
+                            "elapsed_time": time.perf_counter() - tool_call_started_at,
                         },
                     )
 
@@ -248,11 +290,45 @@ class ReActAgentStrategy(AgentStrategy):
                     self.update_prompt_message_tool(
                         tool_instances[prompt_tool.name], prompt_tool
                     )
-
+            yield self.finish_log_message(
+                log=round_log,
+                data={
+                    "output": {
+                        "llm_response": scratchpad.agent_response,
+                    },
+                },
+                metadata={
+                    "started_at": round_started_at,
+                    "finished_at": time.perf_counter(),
+                    "elapsed_time": time.perf_counter() - round_started_at,
+                    "total_price": usage_dict["usage"].total_price
+                    if usage_dict["usage"]
+                    else 0,
+                    "currency": usage_dict["usage"].currency
+                    if usage_dict["usage"]
+                    else "",
+                    "total_tokens": usage_dict["usage"].total_tokens
+                    if usage_dict["usage"]
+                    else 0,
+                },
+            )
             iteration_step += 1
 
+        yield self.create_text_message(final_answer)
         yield self.create_json_message(
-            {"output": final_answer, "token_usage": llm_usage["usage"]}
+            {
+                "execution_metadata": {
+                    "total_price": llm_usage["usage"].total_price
+                    if llm_usage["usage"] is not None
+                    else 0,
+                    "currency": llm_usage["usage"].currency
+                    if llm_usage["usage"] is not None
+                    else "",
+                    "total_tokens": llm_usage["usage"].total_tokens
+                    if llm_usage["usage"] is not None
+                    else 0,
+                }
+            }
         )
 
     def _organize_system_prompt(self) -> SystemPromptMessage:
@@ -295,30 +371,6 @@ class ReActAgentStrategy(AgentStrategy):
         """
         Organize user query
         """
-        # if self.files:
-        #     prompt_message_contents: list[PromptMessageContent] = []
-        #     prompt_message_contents.append(TextPromptMessageContent(data=query))
-
-        #     # get image detail config
-        #     image_detail_config = (
-        #         self.application_generate_entity.file_upload_config.image_config.detail
-        #         if (
-        #             self.application_generate_entity.file_upload_config
-        #             and self.application_generate_entity.file_upload_config.image_config
-        #         )
-        #         else None
-        #     )
-        #     image_detail_config = image_detail_config or ImagePromptMessageContent.DETAIL.LOW
-        #     for file in self.files:
-        #         prompt_message_contents.append(
-        #             file_manager.to_prompt_message_content(
-        #                 file,
-        #                 image_detail_config=image_detail_config,
-        #             )
-        #         )
-
-        #     prompt_messages.append(UserPromptMessage(content=prompt_message_contents))
-        # else:
         prompt_messages.append(UserPromptMessage(content=query))
 
         return prompt_messages
@@ -418,7 +470,7 @@ class ReActAgentStrategy(AgentStrategy):
             provider_type=ToolProviderType.BUILT_IN,
             provider=tool_instance.identity.provider,
             tool_name=tool_instance.identity.name,
-            parameters=tool_call_args,
+            parameters={**tool_instance.runtime_parameters, **tool_call_args},
         )
         result = ""
         for response in tool_invoke_responses:
@@ -446,14 +498,6 @@ class ReActAgentStrategy(AgentStrategy):
             else:
                 result += f"tool response: {response.message!r}."
         tool_invoke_meta = ToolInvokeMeta.error_instance("")
-        # # publish files
-        # for message_file_id in message_files:
-        #     # publish message file
-        #     self.queue_manager.publish(
-        #         QueueMessageFileEvent(message_file_id=message_file_id), PublishFrom.APPLICATION_MANAGER
-        #     )
-        #     # add message file ids
-        #     message_file_ids.append(message_file_id)
 
         return result, tool_invoke_meta
 

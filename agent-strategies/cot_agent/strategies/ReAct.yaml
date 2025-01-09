@@ -43,6 +43,14 @@ parameters:
       en_US: Query
       zh_Hans: 查询
       pt_BR: Query
+  - name: maximum_iterations
+    type: number
+    required: true
+    label:
+      en_US: Maxium Iterations
+      zh_Hans: 最大迭代次数
+      pt_BR: Maxium Iterations
+    default: 3
 output_schema:
   type: object
   properties:

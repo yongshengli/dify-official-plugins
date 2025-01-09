@@ -2,7 +2,7 @@ import sys
 
 sys.path.append("../..")
 
-from dify_plugin import Plugin, DifyPluginEnv
+from dify_plugin import DifyPluginEnv, Plugin
 
 plugin = Plugin(DifyPluginEnv(MAX_REQUEST_TIMEOUT=240))
 

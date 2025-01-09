@@ -43,13 +43,14 @@ parameters:
       en_US: Query
       zh_Hans: 查询
       pt_BR: Query
-  - name: test
-    type: string
+  - name: maximum_iterations
+    type: number
     required: true
     label:
-      en_US: Test
-      zh_Hans: 测试
-      pt_BR: Test
+      en_US: Maxium Iterations
+      zh_Hans: 最大迭代次数
+      pt_BR: Maxium Iterations
+    default: 3
 extra:
   python:
     source: strategies/function_calling.py
