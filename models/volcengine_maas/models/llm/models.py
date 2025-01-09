@@ -90,13 +90,10 @@ def get_model_config(credentials: dict) -> ModelConfig:
 
 def get_v2_req_params(credentials: dict, model_parameters: dict, stop: list[str] | None = None):
     req_params = {}
-    # predefined properties
     model_configs = get_model_config(credentials)
     if model_configs:
         req_params["max_prompt_tokens"] = model_configs.properties.context_size
         req_params["max_new_tokens"] = model_configs.properties.max_tokens
-
-    # model parameters
     if model_parameters.get("max_tokens"):
         req_params["max_new_tokens"] = model_parameters.get("max_tokens")
     if model_parameters.get("temperature"):
@@ -109,21 +106,16 @@ def get_v2_req_params(credentials: dict, model_parameters: dict, stop: list[str]
         req_params["presence_penalty"] = model_parameters.get("presence_penalty")
     if model_parameters.get("frequency_penalty"):
         req_params["frequency_penalty"] = model_parameters.get("frequency_penalty")
-
     if stop:
         req_params["stop"] = stop
-
     return req_params
 
 
 def get_v3_req_params(credentials: dict, model_parameters: dict, stop: list[str] | None = None):
     req_params = {}
-    # predefined properties
     model_configs = get_model_config(credentials)
     if model_configs:
         req_params["max_tokens"] = model_configs.properties.max_tokens
-
-    # model parameters
     if model_parameters.get("max_tokens"):
         req_params["max_tokens"] = model_parameters.get("max_tokens")
     if model_parameters.get("temperature"):
@@ -134,8 +126,6 @@ def get_v3_req_params(credentials: dict, model_parameters: dict, stop: list[str]
         req_params["presence_penalty"] = model_parameters.get("presence_penalty")
     if model_parameters.get("frequency_penalty"):
         req_params["frequency_penalty"] = model_parameters.get("frequency_penalty")
-
     if stop:
         req_params["stop"] = stop
-
     return req_params

@@ -1,8 +1,7 @@
 import logging
-
 from dify_plugin.entities.model import ModelType
 from dify_plugin.errors.model import CredentialsValidateFailedError
-from dify_plugin.interfaces.model import ModelProvider
+from dify_plugin import ModelProvider
 
 logger = logging.getLogger(__name__)
 
@@ -18,15 +17,10 @@ class BedrockProvider(ModelProvider):
         """
         try:
             model_instance = self.get_model_instance(ModelType.LLM)
-
-            # Use `amazon.titan-text-lite-v1` model by default for validating credentials
-            model_for_validation = credentials.get('model_for_validation', 'amazon.titan-text-lite-v1')
-            model_instance.validate_credentials(
-                model=model_for_validation,
-                credentials=credentials
-            )
+            model_for_validation = credentials.get("model_for_validation", "amazon.titan-text-lite-v1")
+            model_instance.validate_credentials(model=model_for_validation, credentials=credentials)
         except CredentialsValidateFailedError as ex:
             raise ex
         except Exception as ex:
-            logger.exception(f'{self.get_provider_schema().provider} credentials validate failed')
+            logger.exception(f"{self.get_provider_schema().provider} credentials validate failed")
             raise ex

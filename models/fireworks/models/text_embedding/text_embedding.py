@@ -1,20 +1,16 @@
 import time
 from collections.abc import Mapping
 from typing import Optional, Union
-
+from dify_plugin import TextEmbeddingModel
 import numpy as np
-from dify_plugin.entities.model import PriceType
-from dify_plugin.entities.model.text_embedding import (EmbeddingUsage,
-                                                       TextEmbeddingResult)
+from dify_plugin.entities.model import EmbeddingInputType, PriceType
+from dify_plugin.entities.model.text_embedding import EmbeddingUsage, TextEmbeddingResult
 from dify_plugin.errors.model import CredentialsValidateFailedError
-from dify_plugin.interfaces.model.text_embedding_model import \
-    TextEmbeddingModel
 from openai import OpenAI
+from models.common import CommonFireworks
 
-from .._common import _CommonFireworks
 
-
-class FireworksTextEmbeddingModel(_CommonFireworks, TextEmbeddingModel):
+class FireworksTextEmbeddingModel(CommonFireworks, TextEmbeddingModel):
     """
     Model class for Fireworks text embedding model.
     """
@@ -25,6 +21,7 @@ class FireworksTextEmbeddingModel(_CommonFireworks, TextEmbeddingModel):
         credentials: dict,
         texts: list[str],
         user: Optional[str] = None,
+        input_type: EmbeddingInputType = EmbeddingInputType.DOCUMENT,
     ) -> TextEmbeddingResult:
         """
         Invoke text embedding model
@@ -36,49 +33,33 @@ class FireworksTextEmbeddingModel(_CommonFireworks, TextEmbeddingModel):
         :param input_type: input type
         :return: embeddings result
         """
-
         credentials_kwargs = self._to_credential_kwargs(credentials)
         client = OpenAI(**credentials_kwargs)
-
         extra_model_kwargs = {}
         if user:
             extra_model_kwargs["user"] = user
-
         extra_model_kwargs["encoding_format"] = "float"
-
         context_size = self._get_context_size(model, credentials)
         max_chunks = self._get_max_chunks(model, credentials)
-
         inputs = []
         indices = []
         used_tokens = 0
-
         for i, text in enumerate(texts):
-            # Here token count is only an approximation based on the GPT2 tokenizer
-            # TODO: Optimize for better token estimation and chunking
             num_tokens = self._get_num_tokens_by_gpt2(text)
-
             if num_tokens >= context_size:
                 cutoff = int(np.floor(len(text) * (context_size / num_tokens)))
-                # if num tokens is larger than context length, only use the start
                 inputs.append(text[0:cutoff])
             else:
                 inputs.append(text)
             indices += [i]
-
         batched_embeddings = []
         _iter = range(0, len(inputs), max_chunks)
-
         for i in _iter:
-            embeddings_batch, embedding_used_tokens = self._embedding_invoke(
-                model=model,
-                client=client,
-                texts=inputs[i: i + max_chunks],
-                extra_model_kwargs=extra_model_kwargs,
+            (embeddings_batch, embedding_used_tokens) = self._embedding_invoke(
+                model=model, client=client, texts=inputs[i : i + max_chunks], extra_model_kwargs=extra_model_kwargs
             )
             used_tokens += embedding_used_tokens
             batched_embeddings += embeddings_batch
-
         usage = self._calc_response_usage(model=model, credentials=credentials, tokens=used_tokens)
         return TextEmbeddingResult(embeddings=batched_embeddings, usage=usage, model=model)
 
@@ -91,7 +72,7 @@ class FireworksTextEmbeddingModel(_CommonFireworks, TextEmbeddingModel):
         :param texts: texts to embed
         :return:
         """
-        return sum(self._get_num_tokens_by_gpt2(text) for text in texts)
+        return sum((self._get_num_tokens_by_gpt2(text) for text in texts))
 
     def validate_credentials(self, model: str, credentials: Mapping) -> None:
         """
@@ -102,11 +83,8 @@ class FireworksTextEmbeddingModel(_CommonFireworks, TextEmbeddingModel):
         :return:
         """
         try:
-            # transform credentials to kwargs for model instance
             credentials_kwargs = self._to_credential_kwargs(credentials)
             client = OpenAI(**credentials_kwargs)
-
-            # call embedding model
             self._embedding_invoke(model=model, client=client, texts=["ping"], extra_model_kwargs={})
         except Exception as ex:
             raise CredentialsValidateFailedError(str(ex))
@@ -123,7 +101,7 @@ class FireworksTextEmbeddingModel(_CommonFireworks, TextEmbeddingModel):
         :return: embeddings and used tokens
         """
         response = client.embeddings.create(model=model, input=texts, **extra_model_kwargs)
-        return [data.embedding for data in response.data], response.usage.total_tokens
+        return ([data.embedding for data in response.data], response.usage.total_tokens)
 
     def _calc_response_usage(self, model: str, credentials: dict, tokens: int) -> EmbeddingUsage:
         """
@@ -137,7 +115,6 @@ class FireworksTextEmbeddingModel(_CommonFireworks, TextEmbeddingModel):
         input_price_info = self.get_price(
             model=model, credentials=credentials, tokens=tokens, price_type=PriceType.INPUT
         )
-
         usage = EmbeddingUsage(
             tokens=tokens,
             total_tokens=tokens,
@@ -147,5 +124,4 @@ class FireworksTextEmbeddingModel(_CommonFireworks, TextEmbeddingModel):
             currency=input_price_info.currency,
             latency=time.perf_counter() - self.started_at,
         )
-
         return usage

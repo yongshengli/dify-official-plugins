@@ -1,14 +1,15 @@
 import logging
 
+from collections.abc import Mapping
 from dify_plugin.entities.model import ModelType
 from dify_plugin.errors.model import CredentialsValidateFailedError
-from dify_plugin.interfaces.model import ModelProvider
+from dify_plugin import ModelProvider
 
 logger = logging.getLogger(__name__)
 
 
 class FishAudioProvider(ModelProvider):
-    def validate_provider_credentials(self, credentials: dict) -> None:
+    def validate_provider_credentials(self, credentials: Mapping) -> None:
         """
         Validate provider credentials
 
@@ -18,7 +19,7 @@ class FishAudioProvider(ModelProvider):
         """
         try:
             model_instance = self.get_model_instance(ModelType.TTS)
-            model_instance.validate_credentials(credentials=credentials)
+            model_instance.validate_credentials(model="", credentials=credentials)
         except CredentialsValidateFailedError as ex:
             raise ex
         except Exception as ex:

@@ -2,14 +2,10 @@ import json
 import logging
 import time
 from typing import Optional
-
+from dify_plugin import TextEmbeddingModel
 from dify_plugin.entities.model import EmbeddingInputType, PriceType
-from dify_plugin.entities.model.text_embedding import (EmbeddingUsage,
-                                                       TextEmbeddingResult)
-from dify_plugin.errors.model import (CredentialsValidateFailedError,
-                                      InvokeError)
-from dify_plugin.interfaces.model.text_embedding_model import \
-    TextEmbeddingModel
+from dify_plugin.entities.model.text_embedding import EmbeddingUsage, TextEmbeddingResult
+from dify_plugin.errors.model import CredentialsValidateFailedError, InvokeError
 from tencentcloud.common import credential
 from tencentcloud.common.exception import TencentCloudSDKException
 from tencentcloud.common.profile.client_profile import ClientProfile
@@ -42,31 +38,24 @@ class HunyuanTextEmbeddingModel(TextEmbeddingModel):
         :param input_type: input type
         :return: embeddings result
         """
-
         if model != "hunyuan-embedding":
             raise ValueError("Invalid model name")
-
         client = self._setup_hunyuan_client(credentials)
-
         embeddings = []
         token_usage = 0
-
         for input in texts:
             request = models.GetEmbeddingRequest()
             params = {"Input": input}
             request.from_json_string(json.dumps(params))
             response = client.GetEmbedding(request)
             usage = response.Usage.TotalTokens
-
             embeddings.extend([data.Embedding for data in response.Data])
             token_usage += usage
-
         result = TextEmbeddingResult(
             model=model,
             embeddings=embeddings,
             usage=self._calc_response_usage(model=model, credentials=credentials, tokens=token_usage),
         )
-
         return result
 
     def validate_credentials(self, model: str, credentials: dict) -> None:
@@ -75,7 +64,6 @@ class HunyuanTextEmbeddingModel(TextEmbeddingModel):
         """
         try:
             client = self._setup_hunyuan_client(credentials)
-
             req = models.ChatCompletionsRequest()
             params = {
                 "Model": model,
@@ -109,12 +97,9 @@ class HunyuanTextEmbeddingModel(TextEmbeddingModel):
         :param tokens: input tokens
         :return: usage
         """
-        # get input price info
         input_price_info = self.get_price(
             model=model, credentials=credentials, price_type=PriceType.INPUT, tokens=tokens
         )
-
-        # transform usage
         usage = EmbeddingUsage(
             tokens=tokens,
             total_tokens=tokens,
@@ -124,7 +109,6 @@ class HunyuanTextEmbeddingModel(TextEmbeddingModel):
             currency=input_price_info.currency,
             latency=time.perf_counter() - self.started_at,
         )
-
         return usage
 
     @property
@@ -137,9 +121,7 @@ class HunyuanTextEmbeddingModel(TextEmbeddingModel):
 
         :return: Invoke error mapping
         """
-        return {
-            InvokeError: [TencentCloudSDKException],
-        }
+        return {InvokeError: [TencentCloudSDKException]}
 
     def get_num_tokens(self, model: str, credentials: dict, texts: list[str]) -> int:
         """
@@ -150,18 +132,7 @@ class HunyuanTextEmbeddingModel(TextEmbeddingModel):
         :param texts: texts to embed
         :return:
         """
-        # client = self._setup_hunyuan_client(credentials)
-
         num_tokens = 0
         for text in texts:
             num_tokens += self._get_num_tokens_by_gpt2(text)
-            # use client.GetTokenCount to get num tokens
-            # request = models.GetTokenCountRequest()
-            # params = {
-            #     "Prompt": text
-            # }
-            # request.from_json_string(json.dumps(params))
-            # response = client.GetTokenCount(request)
-            # num_tokens += response.TokenCount
-
         return num_tokens

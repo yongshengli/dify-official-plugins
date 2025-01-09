@@ -1,28 +1,38 @@
 import time
 from decimal import Decimal
 from typing import Optional
-
-from dify_plugin.entities.model import (AIModelEntity, EmbeddingInputType,
-                                        FetchFrom, I18nObject,
-                                        ModelPropertyKey, ModelType,
-                                        PriceConfig, PriceType)
-from dify_plugin.entities.model.text_embedding import (EmbeddingUsage,
-                                                       TextEmbeddingResult)
-from dify_plugin.errors.model import (CredentialsValidateFailedError,
-                                      InvokeAuthorizationError,
-                                      InvokeBadRequestError,
-                                      InvokeConnectionError, InvokeError,
-                                      InvokeRateLimitError,
-                                      InvokeServerUnavailableError)
-from dify_plugin.interfaces.model.text_embedding_model import \
-    TextEmbeddingModel
-
-from ..client import ArkClientV3
-from ..legacy.client import MaaSClient
-from ..legacy.errors import (AuthErrors, BadRequestErrors, ConnectionErrors,
-                             MaasError, RateLimitErrors,
-                             ServerUnavailableErrors)
-from .models import get_model_config
+from dify_plugin import TextEmbeddingModel
+from dify_plugin.entities.model import (
+    AIModelEntity,
+    EmbeddingInputType,
+    FetchFrom,
+    I18nObject,
+    ModelPropertyKey,
+    ModelType,
+    PriceConfig,
+    PriceType,
+)
+from dify_plugin.entities.model.text_embedding import EmbeddingUsage, TextEmbeddingResult
+from dify_plugin.errors.model import (
+    CredentialsValidateFailedError,
+    InvokeAuthorizationError,
+    InvokeBadRequestError,
+    InvokeConnectionError,
+    InvokeError,
+    InvokeRateLimitError,
+    InvokeServerUnavailableError,
+)
+from models.client import ArkClientV3
+from legacy.client import MaaSClient
+from legacy.errors import (
+    AuthErrors,
+    BadRequestErrors,
+    ConnectionErrors,
+    MaasError,
+    RateLimitErrors,
+    ServerUnavailableErrors,
+)
+from models.text_embedding.models import get_model_config
 
 
 class VolcengineMaaSTextEmbeddingModel(TextEmbeddingModel):
@@ -50,7 +60,6 @@ class VolcengineMaaSTextEmbeddingModel(TextEmbeddingModel):
         """
         if ArkClientV3.is_legacy(credentials):
             return self._generate_v2(model, credentials, texts, user)
-
         return self._generate_v3(model, credentials, texts, user)
 
     def _generate_v2(
@@ -58,11 +67,8 @@ class VolcengineMaaSTextEmbeddingModel(TextEmbeddingModel):
     ) -> TextEmbeddingResult:
         client = MaaSClient.from_credential(credentials)
         resp = MaaSClient.wrap_exception(lambda: client.embeddings(texts))
-
         usage = self._calc_response_usage(model=model, credentials=credentials, tokens=resp["usage"]["total_tokens"])
-
         result = TextEmbeddingResult(model=model, embeddings=[v["embedding"] for v in resp["data"]], usage=usage)
-
         return result
 
     def _generate_v3(
@@ -70,11 +76,8 @@ class VolcengineMaaSTextEmbeddingModel(TextEmbeddingModel):
     ) -> TextEmbeddingResult:
         client = ArkClientV3.from_credentials(credentials)
         resp = client.embeddings(texts)
-
         usage = self._calc_response_usage(model=model, credentials=credentials, tokens=resp.usage.total_tokens)
-
         result = TextEmbeddingResult(model=model, embeddings=[v.embedding for v in resp.data], usage=usage)
-
         return result
 
     def get_num_tokens(self, model: str, credentials: dict, texts: list[str]) -> int:
@@ -88,7 +91,6 @@ class VolcengineMaaSTextEmbeddingModel(TextEmbeddingModel):
         """
         num_tokens = 0
         for text in texts:
-            # use GPT2Tokenizer to get num tokens
             num_tokens += self._get_num_tokens_by_gpt2(text)
         return num_tokens
 
@@ -156,7 +158,6 @@ class VolcengineMaaSTextEmbeddingModel(TextEmbeddingModel):
                 currency=credentials.get("currency", "USD"),
             ),
         )
-
         return entity
 
     def _calc_response_usage(self, model: str, credentials: dict, tokens: int) -> EmbeddingUsage:
@@ -168,12 +169,9 @@ class VolcengineMaaSTextEmbeddingModel(TextEmbeddingModel):
         :param tokens: input tokens
         :return: usage
         """
-        # get input price info
         input_price_info = self.get_price(
             model=model, credentials=credentials, price_type=PriceType.INPUT, tokens=tokens
         )
-
-        # transform usage
         usage = EmbeddingUsage(
             tokens=tokens,
             total_tokens=tokens,
@@ -183,5 +181,4 @@ class VolcengineMaaSTextEmbeddingModel(TextEmbeddingModel):
             currency=input_price_info.currency,
             latency=time.perf_counter() - self.started_at,
         )
-
         return usage

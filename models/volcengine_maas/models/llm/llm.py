@@ -1,32 +1,48 @@
 import logging
 from collections.abc import Generator
-
-from dify_plugin.entities.model import (AIModelEntity, FetchFrom, I18nObject,
-                                        ModelPropertyKey, ModelType,
-                                        ParameterRule, ParameterType)
-from dify_plugin.entities.model.llm import (LLMResult, LLMResultChunk,
-                                            LLMResultChunkDelta)
-from dify_plugin.entities.model.message import (AssistantPromptMessage,
-                                                PromptMessage,
-                                                PromptMessageTool,
-                                                UserPromptMessage)
-from dify_plugin.errors.model import (CredentialsValidateFailedError,
-                                      InvokeAuthorizationError,
-                                      InvokeBadRequestError,
-                                      InvokeConnectionError, InvokeError,
-                                      InvokeRateLimitError,
-                                      InvokeServerUnavailableError)
-from dify_plugin.interfaces.model.large_language_model import \
-    LargeLanguageModel
-from volcenginesdkarkruntime.types.chat import (ChatCompletion,
-                                                ChatCompletionChunk)
-
-from ..client import ArkClientV3
-from ..legacy.client import MaaSClient
-from ..legacy.errors import (AuthErrors, BadRequestErrors, ConnectionErrors,
-                             MaasError, RateLimitErrors,
-                             ServerUnavailableErrors)
-from .models import get_model_config, get_v2_req_params, get_v3_req_params
+from typing import Optional
+from dify_plugin.entities.model import (
+    AIModelEntity,
+    FetchFrom,
+    I18nObject,
+    ModelPropertyKey,
+    ModelType,
+    ParameterRule,
+    ParameterType,
+)
+from dify_plugin.entities.model.llm import LLMResult, LLMResultChunk, LLMResultChunkDelta
+from dify_plugin.entities.model.message import (
+    AssistantPromptMessage,
+    PromptMessage,
+    PromptMessageTool,
+    UserPromptMessage,
+)
+from dify_plugin.errors.model import (
+    CredentialsValidateFailedError,
+    InvokeAuthorizationError,
+    InvokeBadRequestError,
+    InvokeConnectionError,
+    InvokeError,
+    InvokeRateLimitError,
+    InvokeServerUnavailableError,
+)
+from dify_plugin.interfaces.model.large_language_model import LargeLanguageModel
+from volcenginesdkarkruntime.types.chat import ChatCompletion, ChatCompletionChunk
+from models.client import ArkClientV3
+from legacy.client import MaaSClient
+from legacy.errors import (
+    AuthErrors,
+    BadRequestErrors,
+    ConnectionErrors,
+    MaasError,
+    RateLimitErrors,
+    ServerUnavailableErrors,
+)
+from models.llm.models import (
+    get_model_config,
+    get_v2_req_params,
+    get_v3_req_params,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +76,7 @@ class VolcengineMaaSLargeLanguageModel(LargeLanguageModel):
         client = MaaSClient.from_credential(credentials)
         try:
             client.chat(
-                {
-                    "max_new_tokens": 16,
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "top_k": 15,
-                },
+                {"max_new_tokens": 16, "temperature": 0.7, "top_p": 0.9, "top_k": 15},
                 [UserPromptMessage(content="ping\nAnswer: ")],
             )
         except MaasError as e:
@@ -76,10 +87,7 @@ class VolcengineMaaSLargeLanguageModel(LargeLanguageModel):
         client = ArkClientV3.from_credentials(credentials)
         try:
             client.chat(
-                max_tokens=16,
-                temperature=0.7,
-                top_p=0.9,
-                messages=[UserPromptMessage(content="ping\nAnswer: ")],
+                max_tokens=16, temperature=0.7, top_p=0.9, messages=[UserPromptMessage(content="ping\nAnswer: ")]
             )
         except Exception as e:
             raise CredentialsValidateFailedError(e)
@@ -104,7 +112,6 @@ class VolcengineMaaSLargeLanguageModel(LargeLanguageModel):
             for key, value in message.items():
                 num_tokens += self._get_num_tokens_by_gpt2(str(key))
                 num_tokens += self._get_num_tokens_by_gpt2(str(value))
-
         return num_tokens
 
     def _get_num_tokens_v3(self, messages: list[PromptMessage]) -> int:
@@ -116,7 +123,6 @@ class VolcengineMaaSLargeLanguageModel(LargeLanguageModel):
             for key, value in message.items():
                 num_tokens += self._get_num_tokens_by_gpt2(str(key))
                 num_tokens += self._get_num_tokens_by_gpt2(str(value))
-
         return num_tokens
 
     def _generate_v2(
@@ -167,11 +173,8 @@ class VolcengineMaaSLargeLanguageModel(LargeLanguageModel):
             choices = resp["choices"]
             if not choices:
                 raise ValueError("No choices found")
-
             choice = choices[0]
             message = choice["message"]
-
-            # parse tool calls
             tool_calls = []
             if message["tool_calls"]:
                 for call in message["tool_calls"]:
@@ -183,15 +186,11 @@ class VolcengineMaaSLargeLanguageModel(LargeLanguageModel):
                         ),
                     )
                     tool_calls.append(tool_call)
-
             usage = resp["usage"]
             return LLMResult(
                 model=model,
                 prompt_messages=prompt_messages,
-                message=AssistantPromptMessage(
-                    content=message["content"] or "",
-                    tool_calls=tool_calls,
-                ),
+                message=AssistantPromptMessage(content=message["content"] or "", tool_calls=tool_calls),
                 usage=self._calc_response_usage(
                     model=model,
                     credentials=credentials,
@@ -245,7 +244,6 @@ class VolcengineMaaSLargeLanguageModel(LargeLanguageModel):
         def _handle_chat_response(resp: ChatCompletion) -> LLMResult:
             choice = resp.choices[0]
             message = choice.message
-            # parse tool calls
             tool_calls = []
             if message.tool_calls:
                 for call in message.tool_calls:
@@ -257,15 +255,11 @@ class VolcengineMaaSLargeLanguageModel(LargeLanguageModel):
                         ),
                     )
                     tool_calls.append(tool_call)
-
             usage = resp.usage
             return LLMResult(
                 model=model,
                 prompt_messages=prompt_messages,
-                message=AssistantPromptMessage(
-                    content=message.content or "",
-                    tool_calls=tool_calls,
-                ),
+                message=AssistantPromptMessage(content=message.content or "", tool_calls=tool_calls),
                 usage=self._calc_response_usage(
                     model=model,
                     credentials=credentials,
@@ -277,16 +271,14 @@ class VolcengineMaaSLargeLanguageModel(LargeLanguageModel):
         if not stream:
             resp = client.chat(prompt_messages, **req_params)
             return _handle_chat_response(resp)
-
         chunks = client.stream_chat(prompt_messages, **req_params)
         return _handle_stream_chat_response(chunks)
 
-    def get_customizable_model_schema(self, model: str, credentials: dict) -> AIModelEntity | None:
+    def get_customizable_model_schema(self, model: str, credentials: dict) -> Optional[AIModelEntity]:
         """
         used to define customizable model schema
         """
         model_config = get_model_config(credentials)
-
         rules = [
             ParameterRule(
                 name="temperature",
@@ -307,10 +299,7 @@ class VolcengineMaaSLargeLanguageModel(LargeLanguageModel):
                 name="presence_penalty",
                 type=ParameterType.FLOAT,
                 use_template="presence_penalty",
-                label=I18nObject(
-                    en_US="Presence Penalty",
-                    zh_Hans="存在惩罚",
-                ),
+                label=I18nObject(en_US="Presence Penalty", zh_Hans="存在惩罚"),
                 min=-2.0,
                 max=2.0,
             ),
@@ -318,10 +307,7 @@ class VolcengineMaaSLargeLanguageModel(LargeLanguageModel):
                 name="frequency_penalty",
                 type=ParameterType.FLOAT,
                 use_template="frequency_penalty",
-                label=I18nObject(
-                    en_US="Frequency Penalty",
-                    zh_Hans="频率惩罚",
-                ),
+                label=I18nObject(en_US="Frequency Penalty", zh_Hans="频率惩罚"),
                 min=-2.0,
                 max=2.0,
             ),
@@ -335,11 +321,9 @@ class VolcengineMaaSLargeLanguageModel(LargeLanguageModel):
                 label=I18nObject(zh_Hans="最大生成长度", en_US="Max Tokens"),
             ),
         ]
-
         model_properties = {}
         model_properties[ModelPropertyKey.CONTEXT_SIZE] = model_config.properties.context_size
         model_properties[ModelPropertyKey.MODE] = model_config.properties.mode.value
-
         entity = AIModelEntity(
             model=model,
             label=I18nObject(en_US=model),
@@ -349,7 +333,6 @@ class VolcengineMaaSLargeLanguageModel(LargeLanguageModel):
             parameter_rules=rules,
             features=model_config.features,
         )
-
         return entity
 
     @property

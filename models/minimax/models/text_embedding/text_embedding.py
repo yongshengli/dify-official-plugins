@@ -1,23 +1,27 @@
 import time
 from json import dumps
 from typing import Optional
-
+from dify_plugin import TextEmbeddingModel
 from dify_plugin.entities.model import EmbeddingInputType, PriceType
-from dify_plugin.entities.model.text_embedding import (EmbeddingUsage,
-                                                       TextEmbeddingResult)
-from dify_plugin.errors.model import (CredentialsValidateFailedError,
-                                      InvokeAuthorizationError,
-                                      InvokeBadRequestError,
-                                      InvokeConnectionError, InvokeError,
-                                      InvokeRateLimitError,
-                                      InvokeServerUnavailableError)
-from dify_plugin.interfaces.model.text_embedding_model import \
-    TextEmbeddingModel
+from dify_plugin.entities.model.text_embedding import EmbeddingUsage, TextEmbeddingResult
+from dify_plugin.errors.model import (
+    CredentialsValidateFailedError,
+    InvokeAuthorizationError,
+    InvokeBadRequestError,
+    InvokeConnectionError,
+    InvokeError,
+    InvokeRateLimitError,
+    InvokeServerUnavailableError,
+)
 from requests import post
-
-from ..errors import (BadRequestError, InsufficientAccountBalanceError,
-                      InternalServerError, InvalidAPIKeyError,
-                      InvalidAuthenticationError, RateLimitReachedError)
+from models.llm.errors import (
+    BadRequestError,
+    InsufficientAccountBalanceError,
+    InternalServerError,
+    InvalidAPIKeyError,
+    InvalidAuthenticationError,
+    RateLimitReachedError,
+)
 
 
 class MinimaxTextEmbeddingModel(TextEmbeddingModel):
@@ -53,36 +57,28 @@ class MinimaxTextEmbeddingModel(TextEmbeddingModel):
             raise CredentialsValidateFailedError("api_key is required")
         url = f"{self.api_base}?GroupId={group_id}"
         headers = {"Authorization": "Bearer " + api_key, "Content-Type": "application/json"}
-
-        data = {"model": "embo-01", "texts": texts, "type": "db"}
-
+        embedding_type = "db" if input_type == EmbeddingInputType.DOCUMENT else "query"
+        data = {"model": "embo-01", "texts": texts, "type": embedding_type}
         try:
             response = post(url, headers=headers, data=dumps(data))
         except Exception as e:
             raise InvokeConnectionError(str(e))
-
         if response.status_code != 200:
             raise InvokeServerUnavailableError(response.text)
-
         try:
             resp = response.json()
-            # check if there is an error
             if resp["base_resp"]["status_code"] != 0:
                 code = resp["base_resp"]["status_code"]
                 msg = resp["base_resp"]["status_msg"]
                 self._handle_error(code, msg)
-
             embeddings = resp["vectors"]
             total_tokens = resp["total_tokens"]
         except InvalidAuthenticationError:
             raise InvalidAPIKeyError("Invalid api key")
         except KeyError as e:
             raise InternalServerError(f"Failed to convert response to json: {e} with text: {response.text}")
-
         usage = self._calc_response_usage(model=model, credentials=credentials, tokens=total_tokens)
-
         result = TextEmbeddingResult(model=model, embeddings=embeddings, usage=usage)
-
         return result
 
     def get_num_tokens(self, model: str, credentials: dict, texts: list[str]) -> int:
@@ -96,7 +92,6 @@ class MinimaxTextEmbeddingModel(TextEmbeddingModel):
         """
         num_tokens = 0
         for text in texts:
-            # use MinimaxTokenizer to get num tokens
             num_tokens += self._get_num_tokens_by_gpt2(text)
         return num_tokens
 
@@ -141,11 +136,7 @@ class MinimaxTextEmbeddingModel(TextEmbeddingModel):
             InvokeConnectionError: [],
             InvokeServerUnavailableError: [InternalServerError],
             InvokeRateLimitError: [RateLimitReachedError],
-            InvokeAuthorizationError: [
-                InvalidAuthenticationError,
-                InsufficientAccountBalanceError,
-                InvalidAPIKeyError,
-            ],
+            InvokeAuthorizationError: [InvalidAuthenticationError, InsufficientAccountBalanceError, InvalidAPIKeyError],
             InvokeBadRequestError: [BadRequestError, KeyError],
         }
 
@@ -158,12 +149,9 @@ class MinimaxTextEmbeddingModel(TextEmbeddingModel):
         :param tokens: input tokens
         :return: usage
         """
-        # get input price info
         input_price_info = self.get_price(
             model=model, credentials=credentials, price_type=PriceType.INPUT, tokens=tokens
         )
-
-        # transform usage
         usage = EmbeddingUsage(
             tokens=tokens,
             total_tokens=tokens,
@@ -173,5 +161,4 @@ class MinimaxTextEmbeddingModel(TextEmbeddingModel):
             currency=input_price_info.currency,
             latency=time.perf_counter() - self.started_at,
         )
-
         return usage

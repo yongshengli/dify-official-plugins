@@ -1,21 +1,29 @@
 import time
 from typing import Optional
-
-from dify_plugin.entities.model import (AIModelEntity, EmbeddingInputType,
-                                        FetchFrom, I18nObject,
-                                        ModelPropertyKey, ModelType, PriceType)
-from dify_plugin.entities.model.text_embedding import (EmbeddingUsage,
-                                                       TextEmbeddingResult)
-from dify_plugin.errors.model import (CredentialsValidateFailedError,
-                                      InvokeAuthorizationError,
-                                      InvokeBadRequestError,
-                                      InvokeConnectionError, InvokeError,
-                                      InvokeRateLimitError,
-                                      InvokeServerUnavailableError)
-from dify_plugin.interfaces.model.text_embedding_model import \
-    TextEmbeddingModel
-
-from ..tei_helper import TeiHelper
+from dify_plugin.entities.model import (
+    AIModelEntity,
+    EmbeddingInputType,
+    FetchFrom,
+    I18nObject,
+    ModelPropertyKey,
+    ModelType,
+    PriceType,
+)
+from dify_plugin.entities.model.text_embedding import (
+    EmbeddingUsage,
+    TextEmbeddingResult,
+)
+from dify_plugin.errors.model import (
+    CredentialsValidateFailedError,
+    InvokeAuthorizationError,
+    InvokeBadRequestError,
+    InvokeConnectionError,
+    InvokeError,
+    InvokeRateLimitError,
+    InvokeServerUnavailableError,
+)
+from dify_plugin.interfaces.model.text_embedding_model import TextEmbeddingModel
+from models.helper import TeiHelper
 
 
 class HuggingfaceTeiTextEmbeddingModel(TextEmbeddingModel):
@@ -48,26 +56,22 @@ class HuggingfaceTeiTextEmbeddingModel(TextEmbeddingModel):
         :return: embeddings result
         """
         server_url = credentials["server_url"]
-
         server_url = server_url.removesuffix("/")
-
-        # get model properties
+        headers = {"Content-Type": "application/json"}
+        api_key = credentials["api_key"]
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         context_size = self._get_context_size(model, credentials)
         max_chunks = self._get_max_chunks(model, credentials)
-
         inputs = []
         indices = []
         used_tokens = 0
-
-        # get tokenized results from TEI
-        batched_tokenize_result = TeiHelper.invoke_tokenize(server_url, texts)
-
-        for i, (text, tokenize_result) in enumerate(zip(texts, batched_tokenize_result)):
-            # Check if the number of tokens is larger than the context size
+        batched_tokenize_result = TeiHelper.invoke_tokenize(server_url, texts, headers)
+        for i, (text, tokenize_result) in enumerate(
+            zip(texts, batched_tokenize_result)
+        ):
             num_tokens = len(tokenize_result)
-
             if num_tokens >= context_size:
-                # Find the best cutoff point
                 pre_special_token_count = 0
                 for token in tokenize_result:
                     if token["special"]:
@@ -75,42 +79,36 @@ class HuggingfaceTeiTextEmbeddingModel(TextEmbeddingModel):
                     else:
                         break
                 rest_special_token_count = (
-                    len([token for token in tokenize_result if token["special"]]) - pre_special_token_count
+                    len([token for token in tokenize_result if token["special"]])
+                    - pre_special_token_count
                 )
-
-                # Calculate the cutoff point, leave 20 extra space to avoid exceeding the limit
                 token_cutoff = context_size - rest_special_token_count - 20
-
-                # Find the cutoff index
                 cutpoint_token = tokenize_result[token_cutoff]
                 cutoff = cutpoint_token["start"]
-
                 inputs.append(text[0:cutoff])
             else:
                 inputs.append(text)
             indices += [i]
-
         batched_embeddings = []
         _iter = range(0, len(inputs), max_chunks)
-
         try:
             used_tokens = 0
             for i in _iter:
-                iter_texts = inputs[i: i + max_chunks]
-                results = TeiHelper.invoke_embeddings(server_url, iter_texts)
+                iter_texts = inputs[i : i + max_chunks]
+                results = TeiHelper.invoke_embeddings(server_url, iter_texts, headers)
                 embeddings = results["data"]
                 embeddings = [embedding["embedding"] for embedding in embeddings]
                 batched_embeddings.extend(embeddings)
-
                 usage = results["usage"]
                 used_tokens += usage["total_tokens"]
         except RuntimeError as e:
             raise InvokeServerUnavailableError(str(e))
-
-        usage = self._calc_response_usage(model=model, credentials=credentials, tokens=used_tokens)
-
-        result = TextEmbeddingResult(model=model, embeddings=batched_embeddings, usage=usage)
-
+        usage = self._calc_response_usage(
+            model=model, credentials=credentials, tokens=used_tokens
+        )
+        result = TextEmbeddingResult(
+            model=model, embeddings=batched_embeddings, usage=usage
+        )
         return result
 
     def get_num_tokens(self, model: str, credentials: dict, texts: list[str]) -> int:
@@ -124,11 +122,10 @@ class HuggingfaceTeiTextEmbeddingModel(TextEmbeddingModel):
         """
         num_tokens = 0
         server_url = credentials["server_url"]
-
         server_url = server_url.removesuffix("/")
-
-        batch_tokens = TeiHelper.invoke_tokenize(server_url, texts)
-        num_tokens = sum(len(tokens) for tokens in batch_tokens)
+        headers = {"Authorization": f"Bearer {credentials.get('api_key')}"}
+        batch_tokens = TeiHelper.invoke_tokenize(server_url, texts, headers)
+        num_tokens = sum((len(tokens) for tokens in batch_tokens))
         return num_tokens
 
     def validate_credentials(self, model: str, credentials: dict) -> None:
@@ -141,11 +138,16 @@ class HuggingfaceTeiTextEmbeddingModel(TextEmbeddingModel):
         """
         try:
             server_url = credentials["server_url"]
-            extra_args = TeiHelper.get_tei_extra_parameter(server_url, model)
+            headers = {"Content-Type": "application/json"}
+            api_key = credentials.get("api_key")
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            extra_args = TeiHelper.get_tei_extra_parameter(server_url, model, headers)
             print(extra_args)
             if extra_args.model_type != "embedding":
-                raise CredentialsValidateFailedError("Current model is not a embedding model")
-
+                raise CredentialsValidateFailedError(
+                    "Current model is not a embedding model"
+                )
             credentials["context_size"] = extra_args.max_input_length
             credentials["max_chunks"] = extra_args.max_client_batch_size
             self._invoke(model=model, credentials=credentials, texts=["ping"])
@@ -162,7 +164,9 @@ class HuggingfaceTeiTextEmbeddingModel(TextEmbeddingModel):
             InvokeBadRequestError: [KeyError],
         }
 
-    def _calc_response_usage(self, model: str, credentials: dict, tokens: int) -> EmbeddingUsage:
+    def _calc_response_usage(
+        self, model: str, credentials: dict, tokens: int
+    ) -> EmbeddingUsage:
         """
         Calculate response usage
 
@@ -171,12 +175,12 @@ class HuggingfaceTeiTextEmbeddingModel(TextEmbeddingModel):
         :param tokens: input tokens
         :return: usage
         """
-        # get input price info
         input_price_info = self.get_price(
-            model=model, credentials=credentials, price_type=PriceType.INPUT, tokens=tokens
+            model=model,
+            credentials=credentials,
+            price_type=PriceType.INPUT,
+            tokens=tokens,
         )
-
-        # transform usage
         usage = EmbeddingUsage(
             tokens=tokens,
             total_tokens=tokens,
@@ -186,14 +190,14 @@ class HuggingfaceTeiTextEmbeddingModel(TextEmbeddingModel):
             currency=input_price_info.currency,
             latency=time.perf_counter() - self.started_at,
         )
-
         return usage
 
-    def get_customizable_model_schema(self, model: str, credentials: dict) -> AIModelEntity | None:
+    def get_customizable_model_schema(
+        self, model: str, credentials: dict
+    ) -> Optional[AIModelEntity]:
         """
         used to define customizable model schema
         """
-
         entity = AIModelEntity(
             model=model,
             label=I18nObject(en_US=model),
@@ -201,9 +205,10 @@ class HuggingfaceTeiTextEmbeddingModel(TextEmbeddingModel):
             model_type=ModelType.TEXT_EMBEDDING,
             model_properties={
                 ModelPropertyKey.MAX_CHUNKS: int(credentials.get("max_chunks", 1)),
-                ModelPropertyKey.CONTEXT_SIZE: int(credentials.get("context_size", 512)),
+                ModelPropertyKey.CONTEXT_SIZE: int(
+                    credentials.get("context_size", 512)
+                ),
             },
             parameter_rules=[],
         )
-
         return entity

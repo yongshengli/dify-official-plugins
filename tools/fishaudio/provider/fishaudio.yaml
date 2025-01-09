@@ -1,0 +1,77 @@
+identity:
+  author: langgenius
+  name: fishaudio
+  label:
+    en_US: Fish Audio
+    zh_Hans: Fish Audio 
+    pt_BR: Fish Audio
+  description:
+    en_US: Fish Audio
+    zh_Hans: Fish Audio
+    pt_BR: Fish Audio
+  icon: fishaudio_l_en.svg
+  tags:
+    - utilities
+credentials_for_provider:
+  api_key:
+    type: secret-input
+    required: true
+    label:
+      en_US: Fish Audio api key
+      zh_Hans: Fish Audio api key
+      pt_BR: Fish Audio api key
+    placeholder:
+      en_US: Please input your Fish Audio api key
+      zh_Hans: 请输入你的 Fish Audio api key
+      pt_BR: Please input your Fish Audio api key
+    help:
+      en_US: Get your api key from Fish Audio
+      zh_Hans: 获取您的 Fish Audio api key
+      pt_BR: Get your api key from Fish Audio
+    url: https://fish.audio/zh-CN/go-api/api-keys
+  api_base:
+    type: text-input
+    required: true
+    label:
+      en_US: Fish Audio endpoint
+      zh_Hans: Fish Audio endpoint
+      pt_BR: Fish Audio endpoint
+    placeholder:
+      en_US: Please input your Fish Audio endpoint
+      zh_Hans: 请输入你的 Fish Audio 端点
+      pt_BR: Please input your Fish Audio endpoint
+    help:
+      en_US: An endpoint is like "https://api.fish.audio"
+      zh_Hans: 例如 "https://api.fish.audio"
+      pt_BR: An endpoint is like "https://api.fish.audio"
+    default: https://api.fish.audio
+  latency:
+    type: select
+    required: true
+    label:
+      en_US: Fish Audio balance mode
+      zh_Hans: Fish Audio 平衡模式
+      pt_BR: Fishaio balance mode
+    options:
+      - label:
+          en_US: normal
+          zh_Hans: normal
+        value: normal
+      - label:
+          en_US: balance
+          zh_Hans: balance
+        value: balance
+    placeholder:
+      en_US: Please input your Fish Audio balance mode
+      zh_Hans: 请输入你的 Fish Audio 平衡模式
+      pt_BR: Please input your Fish Audio balance mode
+    help:
+      en_US: Balance mode will reduce latency to 300 ms, but may decrease stability
+      zh_Hans: 平衡模式会将延迟降低到 300 毫秒，但可能会降低稳定性
+      pt_BR: Balance mode will reduce latency to 300 ms, but may decrease stability
+    default: normal
+tools:
+  - tools/tts.yaml
+extra:
+  python:
+    source: provider/fishaudio.py

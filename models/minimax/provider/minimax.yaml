@@ -1,11 +1,11 @@
-background: "#FFEFEF"
+background: '#FFEFEF'
 configurate_methods:
-  - predefined-model
+- predefined-model
 extra:
   python:
     model_sources:
-      - models/llm/llm.py
-      - models/text_embedding/text_embedding.py
+    - models/llm/llm.py
+    - models/text_embedding/text_embedding.py
     provider_source: provider/minimax.py
 help:
   title:
@@ -22,29 +22,29 @@ label:
 models:
   llm:
     predefined:
-      - models/llm/*.yaml
+    - models/llm/*.yaml
   text_embedding:
     predefined:
-      - models/text_embedding/*.yaml
+    - models/text_embedding/*.yaml
 provider: minimax
 provider_credential_schema:
   credential_form_schemas:
-    - label:
-        en_US: API Key
-      placeholder:
-        en_US: Enter your API Key
-        zh_Hans: 在此输入您的 API Key
-      required: true
-      type: secret-input
-      variable: minimax_api_key
-    - label:
-        en_US: Group ID
-      placeholder:
-        en_US: Enter your group ID
-        zh_Hans: 在此输入您的 Group ID
-      required: true
-      type: text-input
-      variable: minimax_group_id
+  - label:
+      en_US: API Key
+    placeholder:
+      en_US: Enter your API Key
+      zh_Hans: 在此输入您的 API Key
+    required: true
+    type: secret-input
+    variable: minimax_api_key
+  - label:
+      en_US: Group ID
+    placeholder:
+      en_US: Enter your group ID
+      zh_Hans: 在此输入您的 Group ID
+    required: true
+    type: text-input
+    variable: minimax_group_id
 supported_model_types:
-  - llm
-  - text-embedding
+- llm
+- text-embedding

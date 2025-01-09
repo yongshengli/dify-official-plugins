@@ -1,0 +1,69 @@
+identity:
+  name: tts
+  author: langgenius
+  label:
+    en_US: TTS
+    zh_Hans: 文本转语音
+    pt_BR: TTS
+description:
+  human:
+    en_US: A text-to-speech tool using the Fish Audio API
+    zh_Hans: 一个使用 Fish Audio API 将文本转换为语音的工具
+    pt_BR: A text-to-speech tool using the Fish Audio API
+  llm: A text-to-speech tool using the Fish Audio API
+parameters:
+  - name: content
+    type: string
+    required: true
+    label:
+      en_US: Text 
+      zh_Hans: 内容
+      pt_BR: text
+    human_description:
+      en_US: text content
+      zh_Hans: 文本内容
+      pt_BR: text content
+    llm_description: text content
+    form: llm
+  - name: voice_id
+    type: string
+    required: true
+    label:
+      en_US: voice id
+      zh_Hans: 声音 ID
+      pt_BR: text
+    human_description:
+      en_US: Fish Audio voice id 
+      zh_Hans: Fish Audio 的声音 ID
+      pt_BR: Fish Audio voice id
+    llm_description: Fish Audio voice id
+    form: llm
+  - name: format
+    type: select
+    required: true
+    default: wav
+    label:
+      en_US: format
+      zh_Hans: 类型
+    options:
+      - label:
+          en_US: mp3
+          zh_Hans: mp3
+        value: mp3
+      - label:
+          en_US: wav
+          zh_Hans: wav
+        value: wav
+      - label:
+          en_US: pcm
+          zh_Hans: pcm
+        value: pcm
+    human_description:
+      en_US: audio format
+      zh_Hans: 声音格式
+      pt_BR: audio format
+    llm_description: audio format
+    form: form
+extra:
+  python:
+    source: tools/tts.py

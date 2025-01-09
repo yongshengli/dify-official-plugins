@@ -1,43 +1,39 @@
 import logging
 from collections.abc import Generator
 from typing import Optional, Union, cast
-
-from dify_plugin.entities.model.llm import (LLMResult, LLMResultChunk,
-                                            LLMResultChunkDelta)
-from dify_plugin.entities.model.message import (AssistantPromptMessage,
-                                                ImagePromptMessageContent,
-                                                PromptMessage,
-                                                PromptMessageContentType,
-                                                PromptMessageTool,
-                                                SystemPromptMessage,
-                                                TextPromptMessageContent,
-                                                ToolPromptMessage,
-                                                UserPromptMessage)
+from dify_plugin.entities.model import (
+    AIModelEntity,
+    FetchFrom,
+    I18nObject,
+    ModelFeature,
+    ModelPropertyKey,
+    ModelType,
+    ParameterRule,
+    ParameterType,
+)
+from dify_plugin.entities.model.llm import LLMMode, LLMResult, LLMResultChunk, LLMResultChunkDelta
+from dify_plugin.entities.model.message import (
+    AssistantPromptMessage,
+    ImagePromptMessageContent,
+    PromptMessage,
+    PromptMessageContentType,
+    PromptMessageTool,
+    SystemPromptMessage,
+    TextPromptMessageContent,
+    ToolPromptMessage,
+    UserPromptMessage,
+)
 from dify_plugin.errors.model import CredentialsValidateFailedError
-from dify_plugin.interfaces.model.large_language_model import \
-    LargeLanguageModel
+from dify_plugin.interfaces.model.large_language_model import LargeLanguageModel
 from openai import OpenAI, Stream
-from openai.types.chat import (ChatCompletion, ChatCompletionChunk,
-                               ChatCompletionMessageToolCall)
-from openai.types.chat.chat_completion_chunk import (ChoiceDeltaFunctionCall,
-                                                     ChoiceDeltaToolCall)
+from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessageToolCall
+from openai.types.chat.chat_completion_chunk import ChoiceDeltaFunctionCall, ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message import FunctionCall
-
-from .._common import _CommonFireworks
+from models.common import CommonFireworks
 
 logger = logging.getLogger(__name__)
 
-FIREWORKS_BLOCK_MODE_PROMPT = """You should always follow the instructions and output a valid {{block}} object.
-The structure of the {{block}} object you can found in the instructions, use {"answer": "$your_answer"} as the default structure
-if you are not sure about the structure.
-
-<instructions>
-{{instructions}}
-</instructions>
-"""  # noqa: E501
-
-
-class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
+class FireworksLargeLanguageModel(CommonFireworks, LargeLanguageModel):
     """
     Model class for Fireworks large language model.
     """
@@ -66,7 +62,6 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
         :param user: unique user id
         :return: full response or stream response chunk generator result
         """
-
         return self._chat_generate(
             model=model,
             credentials=credentials,
@@ -77,86 +72,6 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
             stream=stream,
             user=user,
         )
-
-    def _code_block_mode_wrapper(
-        self,
-        model: str,
-        credentials: dict,
-        prompt_messages: list[PromptMessage],
-        model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
-        stop: Optional[list[str]] = None,
-        stream: bool = True,
-        user: Optional[str] = None,
-    ) -> Union[LLMResult, Generator]:
-        """
-        Code block mode wrapper for invoking large language model
-        """
-        if "response_format" in model_parameters and model_parameters["response_format"] in {"JSON", "XML"}:
-            stop = stop or []
-            self._transform_chat_json_prompts(
-                model=model,
-                credentials=credentials,
-                prompt_messages=prompt_messages,
-                model_parameters=model_parameters,
-                tools=tools,
-                stop=stop,
-                stream=stream,
-                user=user,
-                response_format=model_parameters["response_format"],
-            )
-            model_parameters.pop("response_format")
-
-            return self._invoke(
-                model=model,
-                credentials=credentials,
-                prompt_messages=prompt_messages,
-                model_parameters=model_parameters,
-                tools=tools,
-                stop=stop,
-                stream=stream,
-                user=user,
-            )
-
-    def _transform_chat_json_prompts(
-        self,
-        model: str,
-        credentials: dict,
-        prompt_messages: list[PromptMessage],
-        model_parameters: dict,
-        tools: list[PromptMessageTool] | None = None,
-        stop: list[str] | None = None,
-        stream: bool = True,
-        user: str | None = None,
-        response_format: str = "JSON",
-    ) -> None:
-        """
-        Transform json prompts
-        """
-        if stop is None:
-            stop = []
-        if "```\n" not in stop:
-            stop.append("```\n")
-        if "\n```" not in stop:
-            stop.append("\n```")
-
-        if len(prompt_messages) > 0 and isinstance(prompt_messages[0], SystemPromptMessage):
-            prompt_messages[0] = SystemPromptMessage(
-                content=FIREWORKS_BLOCK_MODE_PROMPT.replace("{{instructions}}", prompt_messages[0].content).replace(
-                    "{{block}}", response_format
-                )
-            )
-            prompt_messages.append(AssistantPromptMessage(content=f"\n```{response_format}\n"))
-        else:
-            prompt_messages.insert(
-                0,
-                SystemPromptMessage(
-                    content=FIREWORKS_BLOCK_MODE_PROMPT.replace(
-                        "{{instructions}}", f"Please output a valid {response_format} object."
-                    ).replace("{{block}}", response_format)
-                ),
-            )
-            prompt_messages.append(AssistantPromptMessage(content=f"\n```{response_format}"))
 
     def get_num_tokens(
         self,
@@ -187,7 +102,6 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
         try:
             credentials_kwargs = self._to_credential_kwargs(credentials)
             client = OpenAI(**credentials_kwargs)
-
             client.chat.completions.create(
                 messages=[{"role": "user", "content": "ping"}], model=model, temperature=0, max_tokens=10, stream=False
             )
@@ -207,21 +121,15 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
     ) -> Union[LLMResult, Generator]:
         credentials_kwargs = self._to_credential_kwargs(credentials)
         client = OpenAI(**credentials_kwargs)
-
         extra_model_kwargs = {}
-
         if tools:
             extra_model_kwargs["functions"] = [
                 {"name": tool.name, "description": tool.description, "parameters": tool.parameters} for tool in tools
             ]
-
         if stop:
             extra_model_kwargs["stop"] = stop
-
         if user:
             extra_model_kwargs["user"] = user
-
-        # chat model
         response = client.chat.completions.create(
             messages=[self._convert_prompt_message_to_dict(m) for m in prompt_messages],
             model=model,
@@ -229,7 +137,6 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
             **model_parameters,
             **extra_model_kwargs,
         )
-
         if stream:
             return self._handle_chat_generate_stream_response(model, credentials, response, prompt_messages, tools)
         return self._handle_chat_generate_response(model, credentials, response, prompt_messages, tools)
@@ -253,31 +160,17 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
         :return: llm response
         """
         assistant_message = response.choices[0].message
-        # assistant_message_tool_calls = assistant_message.tool_calls
         assistant_message_function_call = assistant_message.function_call
-
-        # extract tool calls from response
-        # tool_calls = self._extract_response_tool_calls(assistant_message_tool_calls)
         function_call = self._extract_response_function_call(assistant_message_function_call)
         tool_calls = [function_call] if function_call else []
-
-        # transform assistant message to prompt message
         assistant_prompt_message = AssistantPromptMessage(content=assistant_message.content, tool_calls=tool_calls)
-
-        # calculate num tokens
         if response.usage:
-            # transform usage
             prompt_tokens = response.usage.prompt_tokens
             completion_tokens = response.usage.completion_tokens
         else:
-            # calculate num tokens
             prompt_tokens = self._num_tokens_from_messages(model, prompt_messages, tools)
             completion_tokens = self._num_tokens_from_messages(model, [assistant_prompt_message])
-
-        # transform usage
         usage = self._calc_response_usage(model, credentials, prompt_tokens, completion_tokens)
-
-        # transform response
         response = LLMResult(
             model=response.model,
             prompt_messages=prompt_messages,
@@ -285,7 +178,6 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
             usage=usage,
             system_fingerprint=response.system_fingerprint,
         )
-
         return response
 
     def _handle_chat_generate_stream_response(
@@ -313,73 +205,49 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
         final_chunk = LLMResultChunk(
             model=model,
             prompt_messages=prompt_messages,
-            delta=LLMResultChunkDelta(
-                index=0,
-                message=AssistantPromptMessage(content=""),
-            ),
+            delta=LLMResultChunkDelta(index=0, message=AssistantPromptMessage(content="")),
         )
-
         for chunk in response:
             if len(chunk.choices) == 0:
                 if chunk.usage:
-                    # calculate num tokens
                     prompt_tokens = chunk.usage.prompt_tokens
                     completion_tokens = chunk.usage.completion_tokens
                 continue
-
             delta = chunk.choices[0]
             has_finish_reason = delta.finish_reason is not None
-
             if (
                 not has_finish_reason
                 and (delta.delta.content is None or delta.delta.content == "")
-                and delta.delta.function_call is None
+                and (delta.delta.function_call is None)
             ):
                 continue
-
-            # assistant_message_tool_calls = delta.delta.tool_calls
             assistant_message_function_call = delta.delta.function_call
-
-            # extract tool calls from response
             if delta_assistant_message_function_call_storage is not None:
-                # handle process of stream function call
                 if assistant_message_function_call:
-                    # message has not ended ever
                     delta_assistant_message_function_call_storage.arguments += assistant_message_function_call.arguments
                     continue
                 else:
-                    # message has ended
                     assistant_message_function_call = delta_assistant_message_function_call_storage
                     delta_assistant_message_function_call_storage = None
-            else:
-                if assistant_message_function_call:
-                    # start of stream function call
-                    delta_assistant_message_function_call_storage = assistant_message_function_call
-                    if delta_assistant_message_function_call_storage.arguments is None:
-                        delta_assistant_message_function_call_storage.arguments = ""
-                    if not has_finish_reason:
-                        continue
-
-            # tool_calls = self._extract_response_tool_calls(assistant_message_tool_calls)
+            elif assistant_message_function_call:
+                delta_assistant_message_function_call_storage = assistant_message_function_call
+                if delta_assistant_message_function_call_storage.arguments is None:
+                    delta_assistant_message_function_call_storage.arguments = ""
+                if not has_finish_reason:
+                    continue
             function_call = self._extract_response_function_call(assistant_message_function_call)
             tool_calls = [function_call] if function_call else []
             if tool_calls:
                 final_tool_calls.extend(tool_calls)
-
-            # transform assistant message to prompt message
             assistant_prompt_message = AssistantPromptMessage(content=delta.delta.content or "", tool_calls=tool_calls)
-
             full_assistant_content += delta.delta.content or ""
-
             if has_finish_reason:
                 final_chunk = LLMResultChunk(
                     model=chunk.model,
                     prompt_messages=prompt_messages,
                     system_fingerprint=chunk.system_fingerprint,
                     delta=LLMResultChunkDelta(
-                        index=delta.index,
-                        message=assistant_prompt_message,
-                        finish_reason=delta.finish_reason,
+                        index=delta.index, message=assistant_prompt_message, finish_reason=delta.finish_reason
                     ),
                 )
             else:
@@ -387,25 +255,17 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
                     model=chunk.model,
                     prompt_messages=prompt_messages,
                     system_fingerprint=chunk.system_fingerprint,
-                    delta=LLMResultChunkDelta(
-                        index=delta.index,
-                        message=assistant_prompt_message,
-                    ),
+                    delta=LLMResultChunkDelta(index=delta.index, message=assistant_prompt_message),
                 )
-
         if not prompt_tokens:
             prompt_tokens = self._num_tokens_from_messages(model, prompt_messages, tools)
-
         if not completion_tokens:
             full_assistant_prompt_message = AssistantPromptMessage(
                 content=full_assistant_content, tool_calls=final_tool_calls
             )
             completion_tokens = self._num_tokens_from_messages(model, [full_assistant_prompt_message])
-
-        # transform usage
         usage = self._calc_response_usage(model, credentials, prompt_tokens, completion_tokens)
         final_chunk.delta.usage = usage
-
         yield final_chunk
 
     def _extract_response_tool_calls(
@@ -423,12 +283,10 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
                 function = AssistantPromptMessage.ToolCall.ToolCallFunction(
                     name=response_tool_call.function.name, arguments=response_tool_call.function.arguments
                 )
-
                 tool_call = AssistantPromptMessage.ToolCall(
                     id=response_tool_call.id, type=response_tool_call.type, function=function
                 )
                 tool_calls.append(tool_call)
-
         return tool_calls
 
     def _extract_response_function_call(
@@ -445,11 +303,9 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
             function = AssistantPromptMessage.ToolCall.ToolCallFunction(
                 name=response_function_call.name, arguments=response_function_call.arguments
             )
-
             tool_call = AssistantPromptMessage.ToolCall(
                 id=response_function_call.name, type="function", function=function
             )
-
         return tool_call
 
     def _convert_prompt_message_to_dict(self, message: PromptMessage) -> dict:
@@ -474,14 +330,11 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
                             "image_url": {"url": message_content.data, "detail": message_content.detail.value},
                         }
                         sub_messages.append(sub_message_dict)
-
                 message_dict = {"role": "user", "content": sub_messages}
         elif isinstance(message, AssistantPromptMessage):
             message = cast(AssistantPromptMessage, message)
             message_dict = {"role": "assistant", "content": message.content}
             if message.tool_calls:
-                # message_dict["tool_calls"] = [tool_call.dict() for tool_call in
-                #                               message.tool_calls]
                 function_call = message.tool_calls[0]
                 message_dict["function_call"] = {
                     "name": function_call.function.name,
@@ -492,18 +345,11 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
             message_dict = {"role": "system", "content": message.content}
         elif isinstance(message, ToolPromptMessage):
             message = cast(ToolPromptMessage, message)
-            # message_dict = {
-            #     "role": "tool",
-            #     "content": message.content,
-            #     "tool_call_id": message.tool_call_id
-            # }
             message_dict = {"role": "function", "content": message.content, "name": message.tool_call_id}
         else:
             raise ValueError(f"Got unknown type {message}")
-
         if message.name:
             message_dict["name"] = message.name
-
         return message_dict
 
     def _num_tokens_from_messages(
@@ -511,33 +357,24 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
         model: str,
         messages: list[PromptMessage],
         tools: Optional[list[PromptMessageTool]] = None,
-        credentials: dict = None,
+        credentials: Optional[dict] = None,
     ) -> int:
         """
         Approximate num tokens with GPT2 tokenizer.
         """
-
         tokens_per_message = 3
         tokens_per_name = 1
-
         num_tokens = 0
         messages_dict = [self._convert_prompt_message_to_dict(m) for m in messages]
         for message in messages_dict:
             num_tokens += tokens_per_message
             for key, value in message.items():
-                # Cast str(value) in case the message value is not a string
-                # This occurs with function messages
-                # TODO: The current token calculation method for the image type is not implemented,
-                #  which need to download the image and then get the resolution for calculation,
-                #  and will increase the request delay
                 if isinstance(value, list):
                     text = ""
                     for item in value:
                         if isinstance(item, dict) and item["type"] == "text":
                             text += item["text"]
-
                     value = text
-
                 if key == "tool_calls":
                     for tool_call in value:
                         for t_key, t_value in tool_call.items():
@@ -551,16 +388,11 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
                                 num_tokens += self._get_num_tokens_by_gpt2(t_value)
                 else:
                     num_tokens += self._get_num_tokens_by_gpt2(str(value))
-
                 if key == "name":
                     num_tokens += tokens_per_name
-
-        # every reply is primed with <im_start>assistant
         num_tokens += 3
-
         if tools:
             num_tokens += self._num_tokens_for_tools(tools)
-
         return num_tokens
 
     def _num_tokens_for_tools(self, tools: list[PromptMessageTool]) -> int:
@@ -575,8 +407,6 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
             num_tokens += self._get_num_tokens_by_gpt2("type")
             num_tokens += self._get_num_tokens_by_gpt2("function")
             num_tokens += self._get_num_tokens_by_gpt2("function")
-
-            # calculate num tokens for function object
             num_tokens += self._get_num_tokens_by_gpt2("name")
             num_tokens += self._get_num_tokens_by_gpt2(tool.name)
             num_tokens += self._get_num_tokens_by_gpt2("description")
@@ -606,5 +436,51 @@ class FireworksLargeLanguageModel(_CommonFireworks, LargeLanguageModel):
                 for required_field in parameters["required"]:
                     num_tokens += 3
                     num_tokens += self._get_num_tokens_by_gpt2(required_field)
-
         return num_tokens
+
+    def get_customizable_model_schema(self, model: str, credentials: dict) -> AIModelEntity:
+        return AIModelEntity(
+            model=model,
+            label=I18nObject(
+                en_US=credentials.get("model_label_en_US", model),
+                zh_Hans=credentials.get("model_label_zh_Hanns", model),
+            ),
+            model_type=ModelType.LLM,
+            features=[ModelFeature.TOOL_CALL, ModelFeature.MULTI_TOOL_CALL, ModelFeature.STREAM_TOOL_CALL]
+            if credentials.get("function_calling_type") == "function_call"
+            else [],
+            fetch_from=FetchFrom.CUSTOMIZABLE_MODEL,
+            model_properties={
+                ModelPropertyKey.CONTEXT_SIZE: int(credentials.get("context_size", 4096)),
+                ModelPropertyKey.MODE: LLMMode.CHAT.value,
+            },
+            parameter_rules=[
+                ParameterRule(
+                    name="temperature",
+                    use_template="temperature",
+                    label=I18nObject(en_US="Temperature", zh_Hans="温度"),
+                    type=ParameterType.FLOAT,
+                ),
+                ParameterRule(
+                    name="max_tokens",
+                    use_template="max_tokens",
+                    default=512,
+                    min=1,
+                    max=int(credentials.get("max_tokens", 4096)),
+                    label=I18nObject(en_US="Max Tokens", zh_Hans="最大标记"),
+                    type=ParameterType.INT,
+                ),
+                ParameterRule(
+                    name="top_p",
+                    use_template="top_p",
+                    label=I18nObject(en_US="Top P", zh_Hans="Top P"),
+                    type=ParameterType.FLOAT,
+                ),
+                ParameterRule(
+                    name="top_k",
+                    use_template="top_k",
+                    label=I18nObject(en_US="Top K", zh_Hans="Top K"),
+                    type=ParameterType.FLOAT,
+                ),
+            ],
+        )

@@ -1,17 +1,26 @@
-from typing import Optional
-
+from typing import Generator, Mapping, Optional
+from dify_plugin.entities.model import AIModelEntity
 import httpx
-from dify_plugin.errors.model import (CredentialsValidateFailedError,
-                                      InvokeBadRequestError, InvokeError)
-from dify_plugin.interfaces.model.tts_model import TTSModel
+from dify_plugin.errors.model import (
+    CredentialsValidateFailedError,
+    InvokeBadRequestError,
+    InvokeError
+)
+from dify_plugin.entities import I18nObject
+from dify_plugin import TTSModel
+from dify_plugin.entities.model import ModelType, ModelPropertyKey
 
+from ..common_fishaudio import FishAudio
 
 class FishAudioText2SpeechModel(TTSModel):
     """
     Model class for Fish.audio Text to Speech model.
     """
 
-    def get_tts_model_voices(self, model: str, credentials: dict, language: Optional[str] = None) -> list:
+    def get_tts_model_voices(self, model: str, credentials: dict, language: Optional[str] = None) -> Optional[list]:
+        if "voices" in credentials and credentials["voices"]:
+            return credentials["voices"]
+
         api_base = credentials.get("api_base", "https://api.fish.audio")
         api_key = credentials.get("api_key")
         use_public_models = credentials.get("use_public_models", "false") == "true"
@@ -45,7 +54,7 @@ class FishAudioText2SpeechModel(TTSModel):
         content_text: str,
         voice: str,
         user: Optional[str] = None,
-    ) -> any:
+    ) -> bytes | Generator[bytes, None, None]:
         """
         Invoke text2speech model
 
@@ -55,7 +64,7 @@ class FishAudioText2SpeechModel(TTSModel):
         :param voice: model timbre
         :param content_text: text content to be translated
         :param user: unique user id
-        :return: generator yielding audio chunks
+        :return: text translated to audio file
         """
 
         return self._tts_invoke_streaming(
@@ -65,7 +74,9 @@ class FishAudioText2SpeechModel(TTSModel):
             voice=voice,
         )
 
-    def validate_credentials(self, credentials: dict, user: Optional[str] = None) -> None:
+    def validate_credentials(
+            self, model: str, credentials: dict, user: Optional[str] = None
+    ) -> None:
         """
         Validate credentials for text2speech model
 
@@ -74,8 +85,8 @@ class FishAudioText2SpeechModel(TTSModel):
         """
 
         try:
-            self.get_tts_model_voices(
-                None,
+            voices = self.get_tts_model_voices(
+                model=model,
                 credentials={
                     "api_key": credentials["api_key"],
                     "api_base": credentials["api_base"],
@@ -83,10 +94,40 @@ class FishAudioText2SpeechModel(TTSModel):
                     "use_public_models": "false",
                 },
             )
+            # save voices to credentials
+            if voices:
+                credentials["voices"] = voices
         except Exception as ex:
             raise CredentialsValidateFailedError(str(ex))
 
-    def _tts_invoke_streaming(self, model: str, credentials: dict, content_text: str, voice: str) -> any:
+    def get_customizable_model_schema(self, model: str, credentials: Mapping) -> AIModelEntity | None:
+        # get tts model voices
+        voices = self.get_tts_model_voices(model, dict(credentials))
+        if not voices:
+            return None
+        
+        # use model to get model name
+        model_name = ""
+        for voice in voices:
+            if voice["value"] == model:
+                model_name = voice["name"]
+                break
+        
+        if not model_name:
+            return None
+
+        return AIModelEntity(
+            model=model,
+            label=I18nObject(
+                zh_Hans=voices[0]["name"],
+                en_US=voices[0]["name"]
+            ),
+            model_type=ModelType.TTS,
+            model_properties={ModelPropertyKey.VOICES: voices}
+        )
+
+
+    def _tts_invoke_streaming(self, model: str, credentials: dict, content_text: str, voice: str) -> Generator[bytes, None, None]:
         """
         Invoke streaming text2speech model
         :param model: model name
@@ -97,7 +138,7 @@ class FishAudioText2SpeechModel(TTSModel):
         """
 
         try:
-            word_limit = self._get_model_word_limit(model, credentials)
+            word_limit = self._get_model_word_limit(model, credentials) or 500
             if len(content_text) > word_limit:
                 sentences = self._split_text_into_sentences(content_text, max_length=word_limit)
             else:
@@ -111,7 +152,7 @@ class FishAudioText2SpeechModel(TTSModel):
         except Exception as ex:
             raise InvokeBadRequestError(str(ex))
 
-    def _tts_invoke_streaming_sentence(self, credentials: dict, content_text: str, voice: Optional[str] = None) -> any:
+    def _tts_invoke_streaming_sentence(self, credentials: dict, content_text: str, voice: Optional[str] = None) -> Generator[bytes, None, None]:
         """
         Invoke streaming text2speech model
 
@@ -121,24 +162,10 @@ class FishAudioText2SpeechModel(TTSModel):
         :return: generator yielding audio chunks
         """
         api_key = credentials.get("api_key")
-        api_url = credentials.get("api_base", "https://api.fish.audio")
-        latency = credentials.get("latency")
-
-        if not api_key:
-            raise InvokeBadRequestError("API key is required")
-
-        with httpx.stream(
-            "POST",
-            api_url + "/v1/tts",
-            json={"text": content_text, "reference_id": voice, "latency": latency},
-            headers={
-                "Authorization": f"Bearer {api_key}",
-            },
-            timeout=None,
-        ) as response:
-            if response.status_code != 200:
-                raise InvokeBadRequestError(f"Error: {response.status_code} - {response.text}")
-            yield from response.iter_bytes()
+        api_base = credentials.get("api_base", "https://api.fish.audio")
+        latency = credentials.get("latency", "normal")
+        client = FishAudio(api_key=api_key, url_base=api_base)
+        return client.tts(content=content_text, voice=voice, latency=latency, format=credentials.get("output_format", "mp3"))
 
     @property
     def _invoke_error_mapping(self) -> dict[type[InvokeError], list[type[Exception]]]:

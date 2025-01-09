@@ -1,2 +1,3 @@
-dify_plugin~=0.0.1b10
-huggingface-hub~=0.16.4
+dify_plugin~=0.0.1b54
+huggingface_hub~=0.27.0
+numpy~=2.2.1

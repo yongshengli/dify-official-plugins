@@ -2,22 +2,20 @@ import json
 import logging
 from collections.abc import Generator
 from typing import cast
-
-from dify_plugin.entities.model.llm import (LLMResult, LLMResultChunk,
-                                            LLMResultChunkDelta)
-from dify_plugin.entities.model.message import (AssistantPromptMessage,
-                                                ImagePromptMessageContent,
-                                                PromptMessage,
-                                                PromptMessageContentType,
-                                                PromptMessageTool,
-                                                SystemPromptMessage,
-                                                TextPromptMessageContent,
-                                                ToolPromptMessage,
-                                                UserPromptMessage)
-from dify_plugin.errors.model import (CredentialsValidateFailedError,
-                                      InvokeError)
-from dify_plugin.interfaces.model.large_language_model import \
-    LargeLanguageModel
+from dify_plugin.entities.model.llm import LLMResult, LLMResultChunk, LLMResultChunkDelta
+from dify_plugin.entities.model.message import (
+    AssistantPromptMessage,
+    ImagePromptMessageContent,
+    PromptMessage,
+    PromptMessageContentType,
+    PromptMessageTool,
+    SystemPromptMessage,
+    TextPromptMessageContent,
+    ToolPromptMessage,
+    UserPromptMessage,
+)
+from dify_plugin.errors.model import CredentialsValidateFailedError, InvokeError
+from dify_plugin.interfaces.model.large_language_model import LargeLanguageModel
 from tencentcloud.common import credential
 from tencentcloud.common.exception import TencentCloudSDKException
 from tencentcloud.common.profile.client_profile import ClientProfile
@@ -42,20 +40,12 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
         client = self._setup_hunyuan_client(credentials)
         request = models.ChatCompletionsRequest()
         messages_dict = self._convert_prompt_messages_to_dicts(prompt_messages)
-
         custom_parameters = {
             "Temperature": model_parameters.get("temperature", 0.0),
             "TopP": model_parameters.get("top_p", 1.0),
             "EnableEnhancement": model_parameters.get("enable_enhance", True),
         }
-
-        params = {
-            "Model": model,
-            "Messages": messages_dict,
-            "Stream": stream,
-            **custom_parameters,
-        }
-        # add Tools and ToolChoice
+        params = {"Model": model, "Messages": messages_dict, "Stream": stream, **custom_parameters}
         if tools and len(tools) > 0:
             params["ToolChoice"] = "auto"
             params["Tools"] = [
@@ -69,13 +59,10 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
                 }
                 for tool in tools
             ]
-
         request.from_json_string(json.dumps(params))
         response = client.ChatCompletions(request)
-
         if stream:
             return self._handle_stream_chat_response(model, credentials, prompt_messages, response)
-
         return self._handle_chat_response(credentials, model, prompt_messages, response)
 
     def validate_credentials(self, model: str, credentials: dict) -> None:
@@ -84,7 +71,6 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
         """
         try:
             client = self._setup_hunyuan_client(credentials)
-
             req = models.ChatCompletionsRequest()
             params = {
                 "Model": model,
@@ -123,23 +109,13 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
                             "Function": {
                                 "Name": tool_call.function.name,
                                 "Arguments": tool_call.function.arguments
-                                if (tool_call.function.arguments == "")
+                                if tool_call.function.arguments == ""
                                 else "{}",
                             },
                         }
                         for tool_call in tool_calls
                     ]
-
-                    dict_list.append(
-                        {
-                            "Role": message.role.value,
-                            # fix set content = "" while tool_call request
-                            # fix [hunyuan] None, [TencentCloudSDKException] code:InvalidParameter
-                            # message:Messages Content and Contents not allowed empty at the same time.
-                            "Content": " ",  # message.content if (message.content is not None) else "",
-                            "ToolCalls": dict_tool_calls,
-                        }
-                    )
+                    dict_list.append({"Role": message.role.value, "Content": " ", "ToolCalls": dict_tool_calls})
                 else:
                     dict_list.append({"Role": message.role.value, "Content": message.content})
             elif isinstance(message, ToolPromptMessage):
@@ -159,10 +135,7 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
                             sub_messages.append(sub_message_dict)
                         elif message_content.type == PromptMessageContentType.IMAGE:
                             message_content = cast(ImagePromptMessageContent, message_content)
-                            sub_message_dict = {
-                                "Type": "image_url",
-                                "ImageUrl": {"Url": message_content.data},
-                            }
+                            sub_message_dict = {"Type": "image_url", "ImageUrl": {"Url": message_content.data}}
                             sub_messages.append(sub_message_dict)
                     dict_list.append({"Role": message.role.value, "Contents": sub_messages})
             else:
@@ -172,13 +145,10 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
     def _handle_stream_chat_response(self, model, credentials, prompt_messages, resp):
         tool_call = None
         tool_calls = []
-
         for index, event in enumerate(resp):
             logging.debug("_handle_stream_chat_response, event: %s", event)
-
             data_str = event["data"]
             data = json.loads(data_str)
-
             choices = data.get("Choices", [])
             if not choices:
                 continue
@@ -186,11 +156,9 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
             delta = choice.get("Delta", {})
             message_content = delta.get("Content", "")
             finish_reason = choice.get("FinishReason", "")
-
             usage = data.get("Usage", {})
             prompt_tokens = usage.get("PromptTokens", 0)
             completion_tokens = usage.get("CompletionTokens", 0)
-
             response_tool_calls = delta.get("ToolCalls")
             if response_tool_calls is not None:
                 new_tool_calls = self._extract_response_tool_calls(response_tool_calls)
@@ -204,24 +172,22 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
                     else:
                         tool_call.function.name += new_tool_call.function.name
                         tool_call.function.arguments += new_tool_call.function.arguments
-                if tool_call is not None and len(tool_call.function.name) > 0 and len(tool_call.function.arguments) > 0:
+                if (
+                    tool_call is not None
+                    and len(tool_call.function.name) > 0
+                    and (len(tool_call.function.arguments) > 0)
+                ):
                     tool_calls.append(tool_call)
                     tool_call = None
-
             assistant_prompt_message = AssistantPromptMessage(content=message_content, tool_calls=[])
-            # rewrite content = "" while tool_call to avoid show content on web page
             if len(tool_calls) > 0:
                 assistant_prompt_message.content = ""
-
-            # add tool_calls to assistant_prompt_message
             if finish_reason == "tool_calls":
                 assistant_prompt_message.tool_calls = tool_calls
                 tool_call = None
                 tool_calls = []
-
             if len(finish_reason) > 0:
                 usage = self._calc_response_usage(model, credentials, prompt_tokens, completion_tokens)
-
                 delta_chunk = LLMResultChunkDelta(
                     index=index,
                     role=delta.get("Role", "assistant"),
@@ -231,18 +197,9 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
                 )
                 tool_call = None
                 tool_calls = []
-
             else:
-                delta_chunk = LLMResultChunkDelta(
-                    index=index,
-                    message=assistant_prompt_message,
-                )
-
-            yield LLMResultChunk(
-                model=model,
-                prompt_messages=prompt_messages,
-                delta=delta_chunk,
-            )
+                delta_chunk = LLMResultChunkDelta(index=index, message=assistant_prompt_message)
+            yield LLMResultChunk(model=model, prompt_messages=prompt_messages, delta=delta_chunk)
 
     def _handle_chat_response(self, credentials, model, prompt_messages, response):
         usage = self._calc_response_usage(
@@ -250,13 +207,7 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
         )
         assistant_prompt_message = AssistantPromptMessage()
         assistant_prompt_message.content = response.Choices[0].Message.Content
-        result = LLMResult(
-            model=model,
-            prompt_messages=prompt_messages,
-            message=assistant_prompt_message,
-            usage=usage,
-        )
-
+        result = LLMResult(model=model, prompt_messages=prompt_messages, message=assistant_prompt_message, usage=usage)
         return result
 
     def get_num_tokens(
@@ -278,11 +229,8 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
         :param messages: List of PromptMessage to combine.
         :return: Combined string with necessary human_prompt and ai_prompt tags.
         """
-        messages = messages.copy()  # don't mutate the original list
-
-        text = "".join(self._convert_one_message_to_text(message) for message in messages)
-
-        # trim off the trailing ' ' that might come from the "Assistant: "
+        messages = messages.copy()
+        text = "".join((self._convert_one_message_to_text(message) for message in messages))
         return text.rstrip()
 
     def _convert_one_message_to_text(self, message: PromptMessage) -> str:
@@ -296,7 +244,6 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
         ai_prompt = "\n\nAssistant:"
         tool_prompt = "\n\nTool:"
         content = message.content
-
         if isinstance(message, UserPromptMessage):
             message_text = f"{human_prompt} {content}"
         elif isinstance(message, AssistantPromptMessage):
@@ -307,7 +254,6 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
             message_text = content
         else:
             raise ValueError(f"Got unknown type {message}")
-
         return message_text
 
     @property
@@ -320,9 +266,7 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
 
         :return: Invoke error mapping
         """
-        return {
-            InvokeError: [TencentCloudSDKException],
-        }
+        return {InvokeError: [TencentCloudSDKException]}
 
     def _extract_response_tool_calls(self, response_tool_calls: list[dict]) -> list[AssistantPromptMessage.ToolCall]:
         """
@@ -338,10 +282,8 @@ class HunyuanLargeLanguageModel(LargeLanguageModel):
                 function = AssistantPromptMessage.ToolCall.ToolCallFunction(
                     name=response_function.get("Name", ""), arguments=response_function.get("Arguments", "")
                 )
-
                 tool_call = AssistantPromptMessage.ToolCall(
                     id=response_tool_call.get("Id", 0), type="function", function=function
                 )
                 tool_calls.append(tool_call)
-
         return tool_calls

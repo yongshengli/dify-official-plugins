@@ -1,6 +1,5 @@
 import logging
-
-from dify_plugin.interfaces.model import ModelProvider
+from dify_plugin import ModelProvider
 
 logger = logging.getLogger(__name__)
 

@@ -1,8 +1,7 @@
 import logging
-
 from dify_plugin.entities.model import ModelType
 from dify_plugin.errors.model import CredentialsValidateFailedError
-from dify_plugin.interfaces.model import ModelProvider
+from dify_plugin import ModelProvider
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +16,6 @@ class HunyuanProvider(ModelProvider):
         """
         try:
             model_instance = self.get_model_instance(ModelType.LLM)
-
-            # Use `hunyuan-standard` model for validate,
             model_instance.validate_credentials(model="hunyuan-standard", credentials=credentials)
         except CredentialsValidateFailedError as ex:
             raise ex

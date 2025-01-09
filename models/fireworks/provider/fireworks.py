@@ -1,8 +1,7 @@
 import logging
-
 from dify_plugin.entities.model import ModelType
 from dify_plugin.errors.model import CredentialsValidateFailedError
-from dify_plugin.interfaces.model import ModelProvider
+from dify_plugin import ModelProvider
 
 logger = logging.getLogger(__name__)
 

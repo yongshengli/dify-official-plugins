@@ -1,1 +1,2 @@
-dify_plugin~=0.0.1b10
+dify_plugin~=0.0.1b58
+ormsgpack==1.7.0

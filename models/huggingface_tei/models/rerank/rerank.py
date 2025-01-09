@@ -1,18 +1,24 @@
 from typing import Optional
-
 import httpx
-from dify_plugin.entities.model import (AIModelEntity, FetchFrom, I18nObject,
-                                        ModelPropertyKey, ModelType)
+from dify_plugin.entities.model import (
+    AIModelEntity,
+    FetchFrom,
+    I18nObject,
+    ModelPropertyKey,
+    ModelType,
+)
 from dify_plugin.entities.model.rerank import RerankDocument, RerankResult
-from dify_plugin.errors.model import (CredentialsValidateFailedError,
-                                      InvokeAuthorizationError,
-                                      InvokeBadRequestError,
-                                      InvokeConnectionError, InvokeError,
-                                      InvokeRateLimitError,
-                                      InvokeServerUnavailableError)
+from dify_plugin.errors.model import (
+    CredentialsValidateFailedError,
+    InvokeAuthorizationError,
+    InvokeBadRequestError,
+    InvokeConnectionError,
+    InvokeError,
+    InvokeRateLimitError,
+    InvokeServerUnavailableError,
+)
 from dify_plugin.interfaces.model.rerank_model import RerankModel
-
-from ..tei_helper import TeiHelper
+from models.helper import TeiHelper
 
 
 class HuggingfaceTeiRerankModel(RerankModel):
@@ -45,24 +51,22 @@ class HuggingfaceTeiRerankModel(RerankModel):
         if len(docs) == 0:
             return RerankResult(model=model, docs=[])
         server_url = credentials["server_url"]
-
         server_url = server_url.removesuffix("/")
-
+        headers = {"Content-Type": "application/json"}
+        api_key = credentials.get("api_key")
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         try:
-            results = TeiHelper.invoke_rerank(server_url, query, docs)
-
+            results = TeiHelper.invoke_rerank(server_url, query, docs, headers)
             rerank_documents = []
             for result in results:
                 rerank_document = RerankDocument(
-                    index=result["index"],
-                    text=result["text"],
-                    score=result["score"],
+                    index=result["index"], text=result["text"], score=result["score"]
                 )
                 if score_threshold is None or result["score"] >= score_threshold:
                     rerank_documents.append(rerank_document)
                 if top_n is not None and len(rerank_documents) >= top_n:
                     break
-
             return RerankResult(model=model, docs=rerank_documents)
         except httpx.HTTPStatusError as e:
             raise InvokeServerUnavailableError(str(e))
@@ -77,12 +81,16 @@ class HuggingfaceTeiRerankModel(RerankModel):
         """
         try:
             server_url = credentials["server_url"]
-            extra_args = TeiHelper.get_tei_extra_parameter(server_url, model)
+            headers = {"Content-Type": "application/json"}
+            api_key = credentials.get("api_key")
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            extra_args = TeiHelper.get_tei_extra_parameter(server_url, model, headers)
             if extra_args.model_type != "reranker":
-                raise CredentialsValidateFailedError("Current model is not a rerank model")
-
+                raise CredentialsValidateFailedError(
+                    "Current model is not a rerank model"
+                )
             credentials["context_size"] = extra_args.max_input_length
-
             self.invoke(
                 model=model,
                 credentials=credentials,
@@ -115,7 +123,9 @@ class HuggingfaceTeiRerankModel(RerankModel):
             InvokeBadRequestError: [InvokeBadRequestError, KeyError, ValueError],
         }
 
-    def get_customizable_model_schema(self, model: str, credentials: dict) -> AIModelEntity | None:
+    def get_customizable_model_schema(
+        self, model: str, credentials: dict
+    ) -> Optional[AIModelEntity]:
         """
         used to define customizable model schema
         """
@@ -125,9 +135,8 @@ class HuggingfaceTeiRerankModel(RerankModel):
             fetch_from=FetchFrom.CUSTOMIZABLE_MODEL,
             model_type=ModelType.RERANK,
             model_properties={
-                ModelPropertyKey.CONTEXT_SIZE: int(credentials.get("context_size", 512)),
+                ModelPropertyKey.CONTEXT_SIZE: int(credentials.get("context_size", 512))
             },
             parameter_rules=[],
         )
-
         return entity

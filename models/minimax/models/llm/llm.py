@@ -1,32 +1,39 @@
 from collections.abc import Generator
-
-from dify_plugin.entities.model.llm import (LLMResult, LLMResultChunk,
-                                            LLMResultChunkDelta)
-from dify_plugin.entities.model.message import (AssistantPromptMessage,
-                                                PromptMessage,
-                                                PromptMessageTool,
-                                                SystemPromptMessage,
-                                                ToolPromptMessage,
-                                                UserPromptMessage)
-from dify_plugin.errors.model import (CredentialsValidateFailedError,
-                                      InvokeAuthorizationError,
-                                      InvokeBadRequestError,
-                                      InvokeConnectionError, InvokeError,
-                                      InvokeRateLimitError,
-                                      InvokeServerUnavailableError)
-from dify_plugin.interfaces.model.large_language_model import \
-    LargeLanguageModel
-
-from ..errors import (BadRequestError, InsufficientAccountBalanceError,
-                      InternalServerError, InvalidAPIKeyError,
-                      InvalidAuthenticationError, RateLimitReachedError)
-from .chat_completion import MinimaxChatCompletion
-from .chat_completion_pro import MinimaxChatCompletionPro
-from .types import MinimaxMessage
+from dify_plugin.entities.model.llm import LLMResult, LLMResultChunk, LLMResultChunkDelta
+from dify_plugin.entities.model.message import (
+    AssistantPromptMessage,
+    PromptMessage,
+    PromptMessageTool,
+    SystemPromptMessage,
+    ToolPromptMessage,
+    UserPromptMessage,
+)
+from dify_plugin.errors.model import (
+    CredentialsValidateFailedError,
+    InvokeAuthorizationError,
+    InvokeBadRequestError,
+    InvokeConnectionError,
+    InvokeError,
+    InvokeRateLimitError,
+    InvokeServerUnavailableError,
+)
+from dify_plugin.interfaces.model.large_language_model import LargeLanguageModel
+from models.llm.chat_completion import MinimaxChatCompletion
+from models.llm.chat_completion_pro import MinimaxChatCompletionPro
+from models.llm.errors import (
+    BadRequestError,
+    InsufficientAccountBalanceError,
+    InternalServerError,
+    InvalidAPIKeyError,
+    InvalidAuthenticationError,
+    RateLimitReachedError,
+)
+from models.llm.types import MinimaxMessage
 
 
 class MinimaxLargeLanguageModel(LargeLanguageModel):
     model_apis = {
+        "abab7-chat-preview": MinimaxChatCompletionPro,
         "abab6.5s-chat": MinimaxChatCompletionPro,
         "abab6.5-chat": MinimaxChatCompletionPro,
         "abab6-chat": MinimaxChatCompletionPro,
@@ -54,14 +61,10 @@ class MinimaxLargeLanguageModel(LargeLanguageModel):
         """
         if model not in self.model_apis:
             raise CredentialsValidateFailedError(f"Invalid model: {model}")
-
         if not credentials.get("minimax_api_key"):
             raise CredentialsValidateFailedError("Invalid API key")
-
         if not credentials.get("minimax_group_id"):
             raise CredentialsValidateFailedError("Invalid group ID")
-
-        # ping
         instance = MinimaxChatCompletionPro()
         try:
             instance.generate(
@@ -115,12 +118,10 @@ class MinimaxLargeLanguageModel(LargeLanguageModel):
         use MinimaxChatCompletionPro as the type of client, anyway,  MinimaxChatCompletion has the same interface
         """
         client: MinimaxChatCompletionPro = self.model_apis[model]()
-
         if tools:
             tools = [
                 {"name": tool.name, "description": tool.description, "parameters": tool.parameters} for tool in tools
             ]
-
         response = client.generate(
             model=model,
             api_key=credentials["minimax_api_key"],
@@ -132,7 +133,6 @@ class MinimaxLargeLanguageModel(LargeLanguageModel):
             stream=stream,
             user=user,
         )
-
         if stream:
             return self._handle_chat_generate_stream_response(
                 model=model, prompt_messages=prompt_messages, credentials=credentials, response=response
@@ -175,10 +175,7 @@ class MinimaxLargeLanguageModel(LargeLanguageModel):
         return LLMResult(
             model=model,
             prompt_messages=prompt_messages,
-            message=AssistantPromptMessage(
-                content=response.content,
-                tool_calls=[],
-            ),
+            message=AssistantPromptMessage(content=response.content, tool_calls=[]),
             usage=usage,
         )
 
@@ -210,7 +207,6 @@ class MinimaxLargeLanguageModel(LargeLanguageModel):
             elif message.function_call:
                 if "name" not in message.function_call or "arguments" not in message.function_call:
                     continue
-
                 yield LLMResultChunk(
                     model=model,
                     prompt_messages=prompt_messages,
@@ -255,10 +251,6 @@ class MinimaxLargeLanguageModel(LargeLanguageModel):
             InvokeConnectionError: [],
             InvokeServerUnavailableError: [InternalServerError],
             InvokeRateLimitError: [RateLimitReachedError],
-            InvokeAuthorizationError: [
-                InvalidAuthenticationError,
-                InsufficientAccountBalanceError,
-                InvalidAPIKeyError,
-            ],
+            InvokeAuthorizationError: [InvalidAuthenticationError, InsufficientAccountBalanceError, InvalidAPIKeyError],
             InvokeBadRequestError: [BadRequestError, KeyError],
         }
