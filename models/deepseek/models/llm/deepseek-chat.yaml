@@ -45,8 +45,8 @@ parameter_rules:
       en_US: Whether to return the log probability of the output token. If true, returns the log probability of each output token in the content of message .
     type: boolean
     label:
-      zh_Hans: 是否返回所输出 token 的对数概率
-      en_US: Whether to return the log probability of the output token
+      zh_Hans: logprobs
+      en_US: logprobs
   - name: top_logprobs
     type: int
     default: 0
@@ -56,8 +56,8 @@ parameter_rules:
       zh_Hans: 一个介于 0 到 20 之间的整数 N，指定每个输出位置返回输出概率 top N 的 token，且返回这些 token 的对数概率。指定此参数时，logprobs 必须为 true。
       en_US: An integer N between 0 and 20, specifying that each output position returns the top N tokens with output probability, and returns the logarithmic probability of these tokens. When specifying this parameter, logprobs must be true.
     label:
-      zh_Hans: 指定每个输出位置返回输出概率 top N 的 token，且返回这些 token 的对数概率
-      en_US: Specify the top N tokens with output probability for each output position, and return the logarithmic probability of these tokens
+      zh_Hans: top_logprobs
+      en_US: top_logprobs
   - name: frequency_penalty
     use_template: frequency_penalty
     default: 0
