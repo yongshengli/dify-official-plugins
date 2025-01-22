@@ -466,7 +466,7 @@ class ReActAgentStrategy(AgentStrategy):
                 tool_call_args = json.loads(tool_call_args)
         tool_call_args = cast(dict, tool_call_args)
         tool_invoke_responses = self.session.tool.invoke(
-            provider_type=ToolProviderType.BUILT_IN,
+            provider_type=ToolProviderType(tool_instance.provider_type),
             provider=tool_instance.identity.provider,
             tool_name=tool_instance.identity.name,
             parameters={**tool_instance.runtime_parameters, **tool_call_args},
