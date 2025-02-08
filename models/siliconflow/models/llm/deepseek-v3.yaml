@@ -1,12 +1,14 @@
-model: Qwen/Qwen2.5-72B-Instruct
+model: deepseek-ai/DeepSeek-V3
 label:
-  en_US: Qwen/Qwen2.5-72B-Instruct
+  en_US: deepseek-ai/DeepSeek-V3
 model_type: llm
 features:
   - agent-thought
+  - tool-call
+  - stream-tool-call
 model_properties:
   mode: chat
-  context_size: 32768
+  context_size: 64000
 parameter_rules:
   - name: temperature
     use_template: temperature
@@ -45,7 +47,7 @@ parameter_rules:
       - text
       - json_object
 pricing:
-  input: '4.13'
-  output: '4.13'
-  unit: '0.000001'
+  input: "1"
+  output: "2"
+  unit: "0.000001"
   currency: RMB
