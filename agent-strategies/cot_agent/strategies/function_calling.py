@@ -15,11 +15,12 @@ from dify_plugin.entities.model.message import (
     AssistantPromptMessage,
     PromptMessage,
     PromptMessageContentType,
+    PromptMessageRole,
     SystemPromptMessage,
     ToolPromptMessage,
     UserPromptMessage,
 )
-from dify_plugin.entities.tool import ToolInvokeMessage, ToolProviderType
+from dify_plugin.entities.tool import LogMetadata, ToolInvokeMessage, ToolProviderType
 from dify_plugin.interfaces.agent import AgentModelConfig, AgentStrategy, ToolEntity
 from pydantic import BaseModel, Field
 
@@ -76,7 +77,9 @@ class FunctionCallingAgentStrategy(AgentStrategy):
         query = fc_params.query
         self.query = query
         instruction = fc_params.instruction
-        init_prompt_messages = [SystemPromptMessage(content=instruction)]
+        init_prompt_messages = [
+            PromptMessage(role=PromptMessageRole.SYSTEM, content=instruction)
+        ]
         tools = fc_params.tools
         tool_instances = {tool.identity.name: tool for tool in tools} if tools else {}
         model = fc_params.model
@@ -103,7 +106,7 @@ class FunctionCallingAgentStrategy(AgentStrategy):
                 label=f"ROUND {iteration_step}",
                 data={},
                 metadata={
-                    "started_at": round_started_at,
+                    LogMetadata.STARTED_AT: round_started_at,
                 },
                 status=ToolInvokeMessage.LogMessage.LogStatus.START,
             )
@@ -126,7 +129,10 @@ class FunctionCallingAgentStrategy(AgentStrategy):
             model_log = self.create_log_message(
                 label=f"{model.model} Thought",
                 data={},
-                metadata={"start_at": model_started_at, "provider": model.provider},
+                metadata={
+                    LogMetadata.STARTED_AT: model_started_at,
+                    LogMetadata.PROVIDER: model.provider,
+                },
                 parent=round_log,
                 status=ToolInvokeMessage.LogMessage.LogStatus.START,
             )
@@ -153,10 +159,7 @@ class FunctionCallingAgentStrategy(AgentStrategy):
             current_llm_usage = None
 
             if isinstance(chunks, Generator):
-                is_first_chunk = True
                 for chunk in chunks:
-                    if is_first_chunk:
-                        is_first_chunk = False
                     # check if there is any tool call
                     if self.check_tool_calls(chunk):
                         function_call_state = True
@@ -239,18 +242,22 @@ class FunctionCallingAgentStrategy(AgentStrategy):
                 data={
                     "output": response,
                     "tool_name": tool_call_names,
-                    "tool_input": tool_call_inputs,
+                    "tool_input": {
+                        tool_call[1]: tool_call[2] for tool_call in tool_calls
+                    },
                 },
                 metadata={
-                    "started_at": model_started_at,
-                    "finished_at": time.perf_counter(),
-                    "elapsed_time": time.perf_counter() - model_started_at,
-                    "provider": model.provider,
-                    "total_price": current_llm_usage.total_price
+                    LogMetadata.STARTED_AT: model_started_at,
+                    LogMetadata.FINISHED_AT: time.perf_counter(),
+                    LogMetadata.ELAPSED_TIME: time.perf_counter() - model_started_at,
+                    LogMetadata.PROVIDER: model.provider,
+                    LogMetadata.TOTAL_PRICE: current_llm_usage.total_price
                     if current_llm_usage
                     else 0,
-                    "currency": current_llm_usage.currency if current_llm_usage else "",
-                    "total_tokens": current_llm_usage.total_tokens
+                    LogMetadata.CURRENCY: current_llm_usage.currency
+                    if current_llm_usage
+                    else "",
+                    LogMetadata.TOTAL_PRICE: current_llm_usage.total_tokens
                     if current_llm_usage
                     else 0,
                 },
@@ -284,8 +291,8 @@ class FunctionCallingAgentStrategy(AgentStrategy):
                     label=f"CALL {tool_call_name}",
                     data={},
                     metadata={
-                        "started_at": time.perf_counter(),
-                        "provider": tool_instance.identity.provider,
+                        LogMetadata.STARTED_AT: time.perf_counter(),
+                        LogMetadata.PROVIDER: tool_instance.identity.provider,
                     },
                     parent=round_log,
                     status=ToolInvokeMessage.LogMessage.LogStatus.START,
@@ -340,12 +347,14 @@ class FunctionCallingAgentStrategy(AgentStrategy):
                             result += f"tool response: {text}."
                         else:
                             result += f"tool response: {response.message!r}."
-                    tool_invoke_meta = ToolInvokeMeta.error_instance("")
                     tool_response = {
                         "tool_call_id": tool_call_id,
                         "tool_call_name": tool_call_name,
+                        "tool_call_input": {
+                            **tool_instance.runtime_parameters,
+                            **tool_call_args,
+                        },
                         "tool_response": result,
-                        "meta": tool_invoke_meta.to_dict(),
                     }
 
                 yield self.finish_log_message(
@@ -354,10 +363,11 @@ class FunctionCallingAgentStrategy(AgentStrategy):
                         "output": tool_response,
                     },
                     metadata={
-                        "started_at": tool_call_started_at,
-                        "provider": tool_instance.identity.provider,
-                        "finished_at": time.perf_counter(),
-                        "elapsed_time": time.perf_counter() - tool_call_started_at,
+                        LogMetadata.STARTED_AT: tool_call_started_at,
+                        LogMetadata.PROVIDER: tool_instance.identity.provider,
+                        LogMetadata.FINISHED_AT: time.perf_counter(),
+                        LogMetadata.ELAPSED_TIME: time.perf_counter()
+                        - tool_call_started_at,
                     },
                 )
                 tool_responses.append(tool_response)
@@ -384,14 +394,16 @@ class FunctionCallingAgentStrategy(AgentStrategy):
                     },
                 },
                 metadata={
-                    "started_at": round_started_at,
-                    "finished_at": time.perf_counter(),
-                    "elapsed_time": time.perf_counter() - round_started_at,
-                    "total_price": current_llm_usage.total_price
+                    LogMetadata.STARTED_AT: round_started_at,
+                    LogMetadata.FINISHED_AT: time.perf_counter(),
+                    LogMetadata.ELAPSED_TIME: time.perf_counter() - round_started_at,
+                    LogMetadata.TOTAL_PRICE: current_llm_usage.total_price
                     if current_llm_usage
                     else 0,
-                    "currency": current_llm_usage.currency if current_llm_usage else "",
-                    "total_tokens": current_llm_usage.total_tokens
+                    LogMetadata.CURRENCY: current_llm_usage.currency
+                    if current_llm_usage
+                    else "",
+                    LogMetadata.TOTAL_PRICE: current_llm_usage.total_tokens
                     if current_llm_usage
                     else 0,
                 },
@@ -401,13 +413,13 @@ class FunctionCallingAgentStrategy(AgentStrategy):
         yield self.create_json_message(
             {
                 "execution_metadata": {
-                    "total_price": llm_usage["usage"].total_price
+                    LogMetadata.TOTAL_PRICE: llm_usage["usage"].total_price
                     if llm_usage["usage"] is not None
                     else 0,
-                    "currency": llm_usage["usage"].currency
+                    LogMetadata.CURRENCY: llm_usage["usage"].currency
                     if llm_usage["usage"] is not None
                     else "",
-                    "total_tokens": llm_usage["usage"].total_tokens
+                    LogMetadata.TOTAL_PRICE: llm_usage["usage"].total_tokens
                     if llm_usage["usage"] is not None
                     else 0,
                 }
