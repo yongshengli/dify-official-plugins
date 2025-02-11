@@ -154,7 +154,6 @@ class FunctionCallingAgentStrategy(AgentStrategy):
 
             # save tool call names and inputs
             tool_call_names = ""
-            tool_call_inputs = ""
 
             current_llm_usage = None
 
@@ -167,19 +166,6 @@ class FunctionCallingAgentStrategy(AgentStrategy):
                         tool_call_names = ";".join(
                             [tool_call[1] for tool_call in tool_calls]
                         )
-                        try:
-                            tool_call_inputs = json.dumps(
-                                {
-                                    tool_call[1]: tool_call[2]
-                                    for tool_call in tool_calls
-                                },
-                                ensure_ascii=False,
-                            )
-                        except json.JSONDecodeError:
-                            # ensure ascii to avoid encoding error
-                            tool_call_inputs = json.dumps(
-                                {tool_call[1]: tool_call[2] for tool_call in tool_calls}
-                            )
 
                     if chunk.delta.message and chunk.delta.message.content:
                         if isinstance(chunk.delta.message.content, list):
@@ -213,16 +199,6 @@ class FunctionCallingAgentStrategy(AgentStrategy):
                     tool_call_names = ";".join(
                         [tool_call[1] for tool_call in tool_calls]
                     )
-                    try:
-                        tool_call_inputs = json.dumps(
-                            {tool_call[1]: tool_call[2] for tool_call in tool_calls},
-                            ensure_ascii=False,
-                        )
-                    except json.JSONDecodeError:
-                        # ensure ascii to avoid encoding error
-                        tool_call_inputs = json.dumps(
-                            {tool_call[1]: tool_call[2] for tool_call in tool_calls}
-                        )
 
                 if result.usage:
                     self.increase_usage(llm_usage, result.usage)
@@ -257,7 +233,7 @@ class FunctionCallingAgentStrategy(AgentStrategy):
                     LogMetadata.CURRENCY: current_llm_usage.currency
                     if current_llm_usage
                     else "",
-                    LogMetadata.TOTAL_PRICE: current_llm_usage.total_tokens
+                    LogMetadata.TOTAL_TOKENS: current_llm_usage.total_tokens
                     if current_llm_usage
                     else 0,
                 },
@@ -309,44 +285,47 @@ class FunctionCallingAgentStrategy(AgentStrategy):
                     }
                 else:
                     # invoke tool
-                    tool_invoke_responses = self.session.tool.invoke(
-                        provider_type=ToolProviderType(tool_instance.provider_type),
-                        provider=tool_instance.identity.provider,
-                        tool_name=tool_instance.identity.name,
-                        parameters={
-                            **tool_instance.runtime_parameters,
-                            **tool_call_args,
-                        },
-                    )
-                    result = ""
-                    for response in tool_invoke_responses:
-                        if response.type == ToolInvokeMessage.MessageType.TEXT:
-                            result += cast(
-                                ToolInvokeMessage.TextMessage, response.message
-                            ).text
-                        elif response.type == ToolInvokeMessage.MessageType.LINK:
-                            result += (
-                                f"result link: {cast(ToolInvokeMessage.TextMessage, response.message).text}."
-                                + " please tell user to check it."
-                            )
-                        elif response.type in {
-                            ToolInvokeMessage.MessageType.IMAGE_LINK,
-                            ToolInvokeMessage.MessageType.IMAGE,
-                        }:
-                            result += (
-                                "image has been created and sent to user already, "
-                                + "you do not need to create it, just tell the user to check it now."
-                            )
-                        elif response.type == ToolInvokeMessage.MessageType.JSON:
-                            text = json.dumps(
-                                cast(
-                                    ToolInvokeMessage.JsonMessage, response.message
-                                ).json_object,
-                                ensure_ascii=False,
-                            )
-                            result += f"tool response: {text}."
-                        else:
-                            result += f"tool response: {response.message!r}."
+                    try:
+                        tool_invoke_responses = self.session.tool.invoke(
+                            provider_type=ToolProviderType(tool_instance.provider_type),
+                            provider=tool_instance.identity.provider,
+                            tool_name=tool_instance.identity.name,
+                            parameters={
+                                **tool_instance.runtime_parameters,
+                                **tool_call_args,
+                            },
+                        )
+                        result = ""
+                        for response in tool_invoke_responses:
+                            if response.type == ToolInvokeMessage.MessageType.TEXT:
+                                result += cast(
+                                    ToolInvokeMessage.TextMessage, response.message
+                                ).text
+                            elif response.type == ToolInvokeMessage.MessageType.LINK:
+                                result += (
+                                    f"result link: {cast(ToolInvokeMessage.TextMessage, response.message).text}."
+                                    + " please tell user to check it."
+                                )
+                            elif response.type in {
+                                ToolInvokeMessage.MessageType.IMAGE_LINK,
+                                ToolInvokeMessage.MessageType.IMAGE,
+                            }:
+                                result += (
+                                    "image has been created and sent to user already, "
+                                    + "you do not need to create it, just tell the user to check it now."
+                                )
+                            elif response.type == ToolInvokeMessage.MessageType.JSON:
+                                text = json.dumps(
+                                    cast(
+                                        ToolInvokeMessage.JsonMessage, response.message
+                                    ).json_object,
+                                    ensure_ascii=False,
+                                )
+                                result += f"tool response: {text}."
+                            else:
+                                result += f"tool response: {response.message!r}."
+                    except Exception as e:
+                        result = f"tool invoke error: {str(e)}"
                     tool_response = {
                         "tool_call_id": tool_call_id,
                         "tool_call_name": tool_call_name,
@@ -403,7 +382,7 @@ class FunctionCallingAgentStrategy(AgentStrategy):
                     LogMetadata.CURRENCY: current_llm_usage.currency
                     if current_llm_usage
                     else "",
-                    LogMetadata.TOTAL_PRICE: current_llm_usage.total_tokens
+                    LogMetadata.TOTAL_TOKENS: current_llm_usage.total_tokens
                     if current_llm_usage
                     else 0,
                 },
@@ -419,7 +398,7 @@ class FunctionCallingAgentStrategy(AgentStrategy):
                     LogMetadata.CURRENCY: llm_usage["usage"].currency
                     if llm_usage["usage"] is not None
                     else "",
-                    LogMetadata.TOTAL_PRICE: llm_usage["usage"].total_tokens
+                    LogMetadata.TOTAL_TOKENS: llm_usage["usage"].total_tokens
                     if llm_usage["usage"] is not None
                     else 0,
                 }

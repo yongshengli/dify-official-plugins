@@ -1,4 +1,3 @@
-import contextlib
 import json
 import time
 from collections.abc import Generator, Mapping
@@ -13,7 +12,12 @@ from dify_plugin.entities.model.message import (
     ToolPromptMessage,
     UserPromptMessage,
 )
-from dify_plugin.entities.tool import LogMetadata, ToolInvokeMessage, ToolProviderType
+from dify_plugin.entities.tool import (
+    LogMetadata,
+    ToolInvokeMessage,
+    ToolParameter,
+    ToolProviderType,
+)
 from dify_plugin.interfaces.agent import (
     AgentModelConfig,
     AgentScratchpadUnit,
@@ -112,7 +116,7 @@ class ReActAgentStrategy(AgentStrategy):
         )
 
         iteration_step = 1
-        max_iteration_steps = react_params.maximum_iterations + 1
+        max_iteration_steps = react_params.maximum_iterations
 
         # convert tools into ModelRuntime Tool format
         prompt_messages_tools = self._init_prompt_tools(tools)
@@ -234,7 +238,7 @@ class ReActAgentStrategy(AgentStrategy):
                 },
             )
             if not scratchpad.action:
-                final_answer = ""
+                final_answer = scratchpad.thought
             else:
                 if scratchpad.action.action_name.lower() == "final answer":
                     # action is final answer, return final answer directly
@@ -267,18 +271,21 @@ class ReActAgentStrategy(AgentStrategy):
                         status=ToolInvokeMessage.LogMessage.LogStatus.START,
                     )
                     yield tool_call_log
-                    tool_invoke_response, tool_invoke_meta = self._handle_invoke_action(
-                        action=scratchpad.action,
-                        tool_instances=tool_instances,
-                        message_file_ids=message_file_ids,
+                    tool_invoke_response, tool_invoke_parameters = (
+                        self._handle_invoke_action(
+                            action=scratchpad.action,
+                            tool_instances=tool_instances,
+                            message_file_ids=message_file_ids,
+                        )
                     )
                     scratchpad.observation = tool_invoke_response
                     scratchpad.agent_response = tool_invoke_response
                     yield self.finish_log_message(
                         log=tool_call_log,
                         data={
+                            "tool_name": tool_name,
+                            "tool_call_args": tool_invoke_parameters,
                             "output": tool_invoke_response,
-                            "meta": tool_invoke_meta.to_dict(),
                         },
                         metadata={
                             LogMetadata.STARTED_AT: tool_call_started_at,
@@ -301,9 +308,14 @@ class ReActAgentStrategy(AgentStrategy):
             yield self.finish_log_message(
                 log=round_log,
                 data={
-                    "output": {
-                        "llm_response": scratchpad.agent_response,
-                    },
+                    "action_name": scratchpad.action.action_name
+                    if scratchpad.action
+                    else "",
+                    "action_input": scratchpad.action.action_input
+                    if scratchpad.action
+                    else "",
+                    "thought": scratchpad.thought,
+                    "observation": scratchpad.observation,
                 },
                 metadata={
                     LogMetadata.STARTED_AT: round_started_at,
@@ -452,7 +464,7 @@ class ReActAgentStrategy(AgentStrategy):
         action: AgentScratchpadUnit.Action,
         tool_instances: Mapping[str, ToolEntity],
         message_file_ids: list[str],
-    ) -> tuple[str, ToolInvokeMeta]:
+    ) -> tuple[str, dict[str, Any] | str]:
         """
         handle invoke action
         :param action: action
@@ -468,46 +480,60 @@ class ReActAgentStrategy(AgentStrategy):
 
         if not tool_instance:
             answer = f"there is not a tool named {tool_call_name}"
-            return answer, ToolInvokeMeta.error_instance(answer)
+            return answer, tool_call_args
 
         if isinstance(tool_call_args, str):
-            with contextlib.suppress(json.JSONDecodeError):
+            try:
                 tool_call_args = json.loads(tool_call_args)
-        tool_call_args = cast(dict, tool_call_args)
-        tool_invoke_responses = self.session.tool.invoke(
-            provider_type=ToolProviderType(tool_instance.provider_type),
-            provider=tool_instance.identity.provider,
-            tool_name=tool_instance.identity.name,
-            parameters={**tool_instance.runtime_parameters, **tool_call_args},
-        )
-        result = ""
-        for response in tool_invoke_responses:
-            if response.type == ToolInvokeMessage.MessageType.TEXT:
-                result += cast(ToolInvokeMessage.TextMessage, response.message).text
-            elif response.type == ToolInvokeMessage.MessageType.LINK:
-                result += (
-                    f"result link: {cast(ToolInvokeMessage.TextMessage, response.message).text}."
-                    + " please tell user to check it."
-                )
-            elif response.type in {
-                ToolInvokeMessage.MessageType.IMAGE_LINK,
-                ToolInvokeMessage.MessageType.IMAGE,
-            }:
-                result += (
-                    "image has been created and sent to user already, "
-                    + "you do not need to create it, just tell the user to check it now."
-                )
-            elif response.type == ToolInvokeMessage.MessageType.JSON:
-                text = json.dumps(
-                    cast(ToolInvokeMessage.JsonMessage, response.message).json_object,
-                    ensure_ascii=False,
-                )
-                result += f"tool response: {text}."
-            else:
-                result += f"tool response: {response.message!r}."
-        tool_invoke_meta = ToolInvokeMeta.error_instance("")
+            except json.JSONDecodeError as e:
+                params = [
+                    param.name
+                    for param in tool_instance.parameters
+                    if param.form == ToolParameter.ToolParameterForm.LLM
+                ]
+                if len(params) > 1:
+                    raise ValueError("tool call args is not a valid json string") from e
+                tool_call_args = {params[0]: tool_call_args} if len(params) == 1 else {}
 
-        return result, tool_invoke_meta
+        tool_invoke_parameters = {**tool_instance.runtime_parameters, **tool_call_args}
+        try:
+            tool_invoke_responses = self.session.tool.invoke(
+                provider_type=ToolProviderType(tool_instance.provider_type),
+                provider=tool_instance.identity.provider,
+                tool_name=tool_instance.identity.name,
+                parameters=tool_invoke_parameters,
+            )
+            result = ""
+            for response in tool_invoke_responses:
+                if response.type == ToolInvokeMessage.MessageType.TEXT:
+                    result += cast(ToolInvokeMessage.TextMessage, response.message).text
+                elif response.type == ToolInvokeMessage.MessageType.LINK:
+                    result += (
+                        f"result link: {cast(ToolInvokeMessage.TextMessage, response.message).text}."
+                        + " please tell user to check it."
+                    )
+                elif response.type in {
+                    ToolInvokeMessage.MessageType.IMAGE_LINK,
+                    ToolInvokeMessage.MessageType.IMAGE,
+                }:
+                    result += (
+                        "image has been created and sent to user already, "
+                        + "you do not need to create it, just tell the user to check it now."
+                    )
+                elif response.type == ToolInvokeMessage.MessageType.JSON:
+                    text = json.dumps(
+                        cast(
+                            ToolInvokeMessage.JsonMessage, response.message
+                        ).json_object,
+                        ensure_ascii=False,
+                    )
+                    result += f"tool response: {text}."
+                else:
+                    result += f"tool response: {response.message!r}."
+        except Exception as e:
+            result = f"tool invoke error: {str(e)}"
+
+        return result, tool_invoke_parameters
 
     def _convert_dict_to_action(self, action: dict) -> AgentScratchpadUnit.Action:
         """
