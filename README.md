@@ -1,4 +1,4 @@
-![[img_v3_02jj_45b62819-de71-4640-8cbb-83054d215acg.jpg]]
+![bar](.assets/bar.png)
 
 <p align="center">
   <a href="https://cloud.dify.ai">Dify Cloud</a> ·
