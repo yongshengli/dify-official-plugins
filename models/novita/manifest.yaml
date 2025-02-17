@@ -2,7 +2,9 @@ author: langgenius
 created_at: 2024-10-08T16:58:21.101264-04:00
 icon: icon_s_en.svg
 label:
-  en_US: novita
+  en_US: Novita
+description:
+  en_US: Novita
 meta:
   arch:
   - amd64

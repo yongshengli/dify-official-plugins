@@ -3,6 +3,8 @@ created_at: 2024-10-08T16:51:54.385000-04:00
 icon: icon_s_en.png
 label:
   en_US: nomic
+description:
+  en_US: Nomic
 meta:
   arch:
   - amd64
