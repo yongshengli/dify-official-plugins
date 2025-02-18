@@ -1,27 +1,63 @@
-# ArXiv Tool
+# LlamaParse Dify Plugin
 
-## Overview
+LlamaParse is a GenAI-native document parser that can parse complex document data for any downstream LLM use case (RAG, agents). This plugin integrates LlamaParse capabilities into the Dify platform.
 
-ArXiv is an open-access repository for scholarly articles in physics, mathematics, computer science, quantitative biology, statistics, and related fields. It enables researchers to share their preprints and working papers. It provides search and browsing capabilities, allowing users to find research papers based on keywords, authors, and subjects.
+![LlamaParse screenshot](./_assets/llama_parse.png)
 
-## Configuration
+## Features
 
-### 1. Get ArXiv tools from Plugin Marketplace
+✅ **Broad file type support**: Parse various unstructured file types (.pdf, .pptx, .docx, .xlsx, .html) with text, tables, visual elements, and complex layouts.
 
-The ArXiv tools could be found at the Plugin Marketplace, please install it first.
+✅ **Table recognition**: Accurately parse embedded tables into text and semi-structured representations.
 
-![](./_assets/arxiv_1.PNG)
+✅ **Multimodal parsing**: Extract visual elements (images/diagrams) into structured formats using the latest multimodal models.
 
-### 2. Use the tool
+✅ **Custom parsing**: Customize output through custom prompt instructions.
 
-You can use the ArXiv tool in the following application types.
+## Getting Started
 
-![](./_assets/arxiv_2.PNG)
+### API Key Setup
 
-#### Chatflow / Workflow applications
+1. Visit [https://cloud.llamaindex.ai/api-key](https://cloud.llamaindex.ai/api-key) to create an account
+2. Generate your API key
+3. Configure the API key in your Dify plugin settings
 
-Both Chatflow and Workflow applications support adding ArXiv tool nodes.
+### Usage Limits
 
-#### Agent applications
+- Free plan: Up to 1000 pages per day
+- Paid plan: 7000 free pages per week + $0.003 per additional page
 
-Add the ArXiv tool in the Agent application, then enter the search command to call this tool.
+## Parameters
+
+### Input Parameters
+
+| Parameter   | Type    | Required | Default  | Description                                              |
+| ----------- | ------- | -------- | -------- | -------------------------------------------------------- |
+| files       | files   | Yes      | -        | Files to be parsed                                       |
+| result_type | select  | No       | markdown | Output format (txt or md)                                |
+| num_workers | number  | No       | 4        | Number of parallel workers for processing multiple files |
+| verbose     | boolean | No       | false    | Enable detailed output logging                           |
+| language    | string  | No       | "en"     | Output language (e.g., "en" for English)                 |
+
+### Output Format
+
+The plugin provides three types of output for each processed file:
+
+1. **Text Message**
+
+   - Plain text concatenation of all parsed documents, separated by "---"
+
+2. **JSON Message**
+
+   - Structure: `{ filename: [{ text: string, metadata: object }] }`
+   - Contains parsed text and associated metadata for each document
+
+3. **Blob Message**
+   - Binary content with appropriate MIME type:
+     - JSON: "application/json"
+     - Markdown: "text/markdown"
+     - Text: "text/plain"
+
+## Credits
+
+This plugin is powered by [LlamaParse](https://github.com/run-llama/llama_cloud_services/tree/main/llama_parse), a powerful document parsing service by LlamaIndex.
