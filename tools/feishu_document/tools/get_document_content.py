@@ -14,4 +14,4 @@ class GetDocumentRawContentTool(Tool):
         mode = tool_parameters.get("mode", "markdown")
         lang = tool_parameters.get("lang", "0")
         res = client.get_document_content(document_id, mode, lang)
-        yield self.create_json_message(res)
+        yield self.create_text_message(res)
