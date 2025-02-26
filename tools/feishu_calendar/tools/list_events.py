@@ -1,11 +1,12 @@
+from collections.abc import Generator
 from typing import Any
 from dify_plugin.entities.tool import ToolInvokeMessage
 from dify_plugin import Tool
-from core.tools.utils.feishu_api_utils import FeishuRequest
+from tools.feishu_api_utils import FeishuRequest
 
 
 class ListEventsTool(Tool):
-    def _invoke(self, user_id: str, tool_parameters: dict[str, Any]) -> ToolInvokeMessage:
+    def _invoke(self, tool_parameters: dict[str, Any]) -> Generator[ToolInvokeMessage, None, None]:
         app_id = self.runtime.credentials.get("app_id")
         app_secret = self.runtime.credentials.get("app_secret")
         client = FeishuRequest(app_id, app_secret)
@@ -14,4 +15,4 @@ class ListEventsTool(Tool):
         page_token = tool_parameters.get("page_token")
         page_size = tool_parameters.get("page_size")
         res = client.list_events(start_time, end_time, page_token, page_size)
-        return self.create_json_message(res)
+        yield self.create_json_message(res)
