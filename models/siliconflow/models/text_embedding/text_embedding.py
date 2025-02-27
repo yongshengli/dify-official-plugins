@@ -34,7 +34,7 @@ class SiliconflowTextEmbeddingModel(OAICompatEmbeddingModel):
         self._add_custom_parameters(credentials)
         return super()._invoke(model, credentials, texts, user)
 
-    def get_num_tokens(self, model: str, credentials: dict, texts: list[str]) -> int:
+    def get_num_tokens(self, model: str, credentials: dict, texts: list[str]) -> list[int]:
         self._add_custom_parameters(credentials)
         return super().get_num_tokens(model, credentials, texts)
 
