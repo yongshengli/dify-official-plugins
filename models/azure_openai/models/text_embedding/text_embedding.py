@@ -2,6 +2,7 @@ import base64
 import copy
 import time
 from typing import Optional, Union
+
 import numpy as np
 import tiktoken
 from dify_plugin.entities.model import AIModelEntity, EmbeddingInputType, PriceType
@@ -12,6 +13,7 @@ from dify_plugin.entities.model.text_embedding import (
 from dify_plugin.errors.model import CredentialsValidateFailedError
 from dify_plugin.interfaces.model.text_embedding_model import TextEmbeddingModel
 from openai import AzureOpenAI
+
 from ..common import _CommonAzureOpenAI
 from ..constants import EMBEDDING_BASE_MODELS, AzureBaseModel
 
@@ -86,7 +88,11 @@ class AzureOpenAITextEmbeddingModel(_CommonAzureOpenAI, TextEmbeddingModel):
                 average = embeddings_batch[0]
             else:
                 average = np.average(_result, axis=0, weights=num_tokens_in_batch[i])
-            embeddings[i] = (average / np.linalg.norm(average)).tolist()
+            embedding = (average / np.linalg.norm(average)).tolist()
+            if np.isnan(embedding).any():
+                raise ValueError("Normalized embedding is nan please try again")
+            embeddings[i] = embedding
+
         usage = self._calc_response_usage(
             model=model, credentials=credentials, tokens=used_tokens
         )
