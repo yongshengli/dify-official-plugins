@@ -1,10 +1,8 @@
-model: command-r-plus
+model: c4ai-aya-expanse-32b
 label:
-  en_US: command-r-plus
+  en_US: c4ai-aya-expanse-32b
 model_type: llm
 features:
-  - multi-tool-call
-  - agent-thought
   - stream-tool-call
 model_properties:
   mode: chat
@@ -37,10 +35,10 @@ parameter_rules:
     use_template: frequency_penalty
   - name: max_tokens
     use_template: max_tokens
-    default: 1024
+    default: 4096
     max: 4096
 pricing:
-  input: '3'
-  output: '15'
+  input: '0.5'
+  output: '1.5'
   unit: '0.000001'
   currency: USD

@@ -1,14 +1,12 @@
-model: command-r-plus
+model: c4ai-aya-expanse-8b
 label:
-  en_US: command-r-plus
+  en_US: c4ai-aya-expanse-8b
 model_type: llm
 features:
-  - multi-tool-call
-  - agent-thought
   - stream-tool-call
 model_properties:
   mode: chat
-  context_size: 128000
+  context_size: 8192
 parameter_rules:
   - name: temperature
     use_template: temperature
@@ -40,7 +38,7 @@ parameter_rules:
     default: 1024
     max: 4096
 pricing:
-  input: '3'
-  output: '15'
+  input: '0.5'
+  output: '1.5'
   unit: '0.000001'
   currency: USD
