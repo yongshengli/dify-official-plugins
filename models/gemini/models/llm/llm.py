@@ -14,6 +14,7 @@ from dify_plugin.entities.model.message import (
     DocumentPromptMessageContent,
     ImagePromptMessageContent,
     PromptMessage,
+    PromptMessageContent,
     PromptMessageContentType,
     PromptMessageTool,
     SystemPromptMessage,
@@ -187,6 +188,7 @@ class GoogleLargeLanguageModel(LargeLanguageModel):
             model_configuration["tools"] = self._convert_to_tools(tools)
 
         config = types.GenerateContentConfig(
+            response_modalities=["Text", "Image"],
             **model_configuration,
         )
 
@@ -286,7 +288,7 @@ class GoogleLargeLanguageModel(LargeLanguageModel):
             )
         usage = self._calc_response_usage(
             model=model,
-            credentials=credentials,
+            credentials=dict(credentials),
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
         )
@@ -315,45 +317,11 @@ class GoogleLargeLanguageModel(LargeLanguageModel):
                 if not candidate.content or not candidate.content.parts:
                     continue
 
-                text_content = ""
-                function_calls = []
-                for part in candidate.content.parts:
-                    if part.text:
-                        text_content += part.text
-                    if part.function_call:
-                        function_call = part.function_call
-                        function_call_id = function_call.id
-                        function_call_name = function_call.name
-                        function_call_args = function_call.args
-                        if not isinstance(function_call_id, str):
-                            raise InvokeError(
-                                "function_call_id received is not a string"
-                            )
-                        if not isinstance(function_call_name, str):
-                            raise InvokeError(
-                                "function_call_name received is not a string"
-                            )
-                        if not isinstance(function_call_args, dict):
-                            raise InvokeError(
-                                "function_call_args received is not a dict"
-                            )
-                        function_call = AssistantPromptMessage.ToolCall(
-                            id=function_call_id,
-                            type="function",
-                            function=AssistantPromptMessage.ToolCall.ToolCallFunction(
-                                name=function_call_name,
-                                arguments=json.dumps(function_call_args),
-                            ),
-                        )
-                        function_calls.append(function_call)
-                    index += 1
-                if function_calls:
-                    message = AssistantPromptMessage(
-                        content=text_content,
-                        tool_calls=function_calls,
-                    )
-                else:
-                    message = AssistantPromptMessage(content=text_content)
+                message = self._parse_parts(candidate.content.parts)
+                index += len(candidate.content.parts)
+
+                if not message.content and not message.tool_calls:
+                    continue
 
                 if chunk.usage_metadata:
                     prompt_tokens += chunk.usage_metadata.prompt_token_count or 0
@@ -386,7 +354,7 @@ class GoogleLargeLanguageModel(LargeLanguageModel):
                         )
                     usage = self._calc_response_usage(
                         model=model,
-                        credentials=credentials,
+                        credentials=dict(credentials),
                         prompt_tokens=prompt_tokens,
                         completion_tokens=completion_tokens,
                     )
@@ -487,3 +455,56 @@ class GoogleLargeLanguageModel(LargeLanguageModel):
                 errors.FunctionInvocationError,
             ],
         }
+
+    def _parse_parts(self, parts: Sequence[types.Part], /) -> AssistantPromptMessage:
+        contents: list[PromptMessageContent] = []
+        function_calls = []
+        for part in parts:
+            if part.text:
+                contents.append(TextPromptMessageContent(data=part.text))
+            if part.function_call:
+                function_call = part.function_call
+                function_call_id = function_call.id
+                function_call_name = function_call.name
+                function_call_args = function_call.args
+                if not isinstance(function_call_id, str):
+                    raise InvokeError("function_call_id received is not a string")
+                if not isinstance(function_call_name, str):
+                    raise InvokeError("function_call_name received is not a string")
+                if not isinstance(function_call_args, dict):
+                    raise InvokeError("function_call_args received is not a dict")
+                function_call = AssistantPromptMessage.ToolCall(
+                    id=function_call_id,
+                    type="function",
+                    function=AssistantPromptMessage.ToolCall.ToolCallFunction(
+                        name=function_call_name,
+                        arguments=json.dumps(function_call_args),
+                    ),
+                )
+                function_calls.append(function_call)
+            if part.inline_data:
+                inline_data = part.inline_data
+                mime_type = inline_data.mime_type
+                data = inline_data.data
+                if mime_type is None:
+                    raise InvokeError("receive inline_data with no mime_type")
+                if data is None:
+                    raise InvokeError("receive inline_data with no data")
+                if "image" in mime_type:
+                    contents.append(
+                        ImagePromptMessageContent(
+                            format=mime_type.split("/")[-1],
+                            base64_data=base64.b64encode(data).decode(),
+                            mime_type=mime_type,
+                        )
+                    )
+                else:
+                    raise InvokeError(f"unsupported mime_type {mime_type}")
+
+        # FIXME: This is a workaround to fix the typing issue in the dify_plugin
+        # https://github.com/langgenius/dify-plugin-sdks/issues/41
+        # fixed_contents = [content.model_dump(mode="json") for content in contents]
+        message = AssistantPromptMessage(
+            content=contents, tool_calls=function_calls  # type: ignore
+        )
+        return message
