@@ -1,0 +1,5 @@
+path: "/workflow/sse"
+method: "GET"
+extra:
+  python:
+    source: "endpoints/wf_sse.py"

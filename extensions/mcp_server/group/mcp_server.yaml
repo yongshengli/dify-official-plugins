@@ -1,0 +1,28 @@
+settings:
+  - name: workflow
+    type: app-selector
+    scope: workflow
+    required: false
+    label:
+      en_US: Workflow to be exported
+      zh_Hans: 要导出的工作流
+      pt_BR: Fluxo de trabalho a ser exportado
+    placeholder:
+      en_US: Workflow to be exported
+      zh_Hans: 要导出的工作流
+      pt_BR: Fluxo de trabalho a ser exportado
+  - name: tool
+    type: text-input
+    required: false
+    label:
+      en_US: Tool
+      zh_Hans: 工具
+      pt_BR: Ferramenta
+    placeholder:
+      en_US: Tool to be exported
+      zh_Hans: 要导出的工具
+      pt_BR: Ferramenta a ser exportada
+endpoints:
+  - endpoints/tool.yaml
+  - endpoints/wf_sse.yaml
+  - endpoints/wf_messages.yaml
