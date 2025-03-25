@@ -22,9 +22,9 @@ parameters:
     type: array[tools]
     required: true
     label:
-      en_US: Tools list
+      en_US: Tool list
       zh_Hans: 工具列表
-      pt_BR: Tools list
+      pt_BR: Tool list
   - name: instruction
     type: string
     required: true
