@@ -5,7 +5,6 @@ from typing import Any, Optional, cast
 
 import pydantic
 from dify_plugin.entities.agent import AgentInvokeMessage
-from dify_plugin.entities.model import AIModelEntity
 from dify_plugin.entities.model.llm import LLMModelConfig, LLMUsage
 from dify_plugin.entities.model.message import (
     AssistantPromptMessage,
@@ -30,10 +29,6 @@ from prompt.template import REACT_PROMPT_TEMPLATES
 from pydantic import BaseModel
 
 ignore_observation_providers = ["wenxin"]
-
-
-class AgentModelConfigCompat(LLMModelConfig):
-    entity: AIModelEntity | None
 
 
 class ReActParams(BaseModel):
