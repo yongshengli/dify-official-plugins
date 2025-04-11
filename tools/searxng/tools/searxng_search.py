@@ -26,7 +26,7 @@ class SearXNGSearchTool(Tool):
             host,
             params={
                 "q": tool_parameters.get("query"),
-                "time_range": tool_parameters.get("time_range", "all"),
+                "time_range": tool_parameters.get("time_range", "day"),
                 "format": "json",
                 "categories": tool_parameters.get("search_type", "general"),
             },
