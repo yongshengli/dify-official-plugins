@@ -62,6 +62,8 @@ if you are not sure about the structure.
 </instructions>
 """
 
+# o1, o3, o4 compatibility
+O_SERIES_COMPATIBILITY = ("o1", "o3", "o4")
 
 class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
     """
@@ -714,7 +716,7 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
 
         # o1, o3, o4 compatibility
         block_as_stream = False
-        if model.startswith(("o1", "o3", "o4")):
+        if model.startswith(O_SERIES_COMPATIBILITY):
             if "max_tokens" in model_parameters:
                 model_parameters["max_completion_tokens"] = model_parameters[
                     "max_tokens"
@@ -1092,7 +1094,7 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
                             )
 
         # o1, o3 compatibility
-        if model.startswith(("o1", "o3")):
+        if model.startswith(O_SERIES_COMPATIBILITY):
             system_message_count = len(
                 [m for m in prompt_messages if isinstance(m, SystemPromptMessage)]
             )
