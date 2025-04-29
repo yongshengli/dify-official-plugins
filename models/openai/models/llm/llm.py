@@ -712,9 +712,9 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
         # clear illegal prompt messages
         prompt_messages = self._clear_illegal_prompt_messages(model, prompt_messages)
 
-        # o1, o3 compatibility
+        # o1, o3, o4 compatibility
         block_as_stream = False
-        if model.startswith(("o1", "o3")):
+        if model.startswith(("o1", "o3", "o4")):
             if "max_tokens" in model_parameters:
                 model_parameters["max_completion_tokens"] = model_parameters[
                     "max_tokens"
