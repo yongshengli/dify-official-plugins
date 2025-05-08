@@ -203,7 +203,8 @@ class TongyiLargeLanguageModel(LargeLanguageModel):
                 # Qwen3 business edition (Thinking Mode), Qwen3 open-source edition, QwQ, and QVQ only supports streaming output.
                 stream=stream,
                 # Qwen3 open-source edition, QwQ, and QVQ models only supports incremental_output set to True.
-                incremental_output=True if enable_thinking else stream,
+                # For the models that support tool calling (tools are provided), incremental_output must be set to False. Fixes https://github.com/langgenius/dify/issues/19364
+                incremental_output=True if enable_thinking else (False if tools else stream),
             )
         if stream:
             return self._handle_generate_stream_response(
