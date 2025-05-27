@@ -90,6 +90,9 @@ jobs:
             fi
           fi
 
+      - name: Debug
+        uses: mxschmitt/action-tmate@v3
+
       - name: Test Changed Plugin
         run: |
           if [ -d "tests/${{ env.PLUGIN_PATH }}" ]; then
