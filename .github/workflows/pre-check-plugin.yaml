@@ -90,16 +90,13 @@ jobs:
             fi
           fi
 
-      - name: Debug
-        uses: mxschmitt/action-tmate@v3
-
       - name: Test Changed Plugin
         run: |
           if [ -d "tests/${{ env.PLUGIN_PATH }}" ]; then
             if [ -f "tests/${{ env.PLUGIN_PATH }}/requirements.txt" ]; then
               uv pip install -r tests/${{ env.PLUGIN_PATH }}/requirements.txt
             fi
-            uv run pytest tests/${{ env.PLUGIN_PATH }}
+            PYTHONPATH=. uv run pytest tests/${{ env.PLUGIN_PATH }}
           fi
 
       - name: Check Plugin Install
