@@ -102,6 +102,7 @@ jobs:
       - name: Check Plugin Install
         run: |
           cd ${{ env.PLUGIN_PATH }}
+          uv sync
           if [ -f requirements.txt ]; then
               uv pip install packaging
               dify_version=$(uv pip list | grep 'dify_plugin' | awk '{print $2}')
