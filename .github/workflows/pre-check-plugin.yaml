@@ -38,9 +38,9 @@ jobs:
           mv .scripts/dify-plugin-linux-amd64 /usr/local/bin/dify
 
       - name: Setup uv
-        uses: actions/setup-uv@v2
+        uses: astral-sh/setup-uv@v6
         with:
-          version: 0.24.0
+          version: "latest"
 
       - name: Setup Global Python
         run: |
