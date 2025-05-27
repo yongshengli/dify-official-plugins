@@ -117,9 +117,9 @@ jobs:
                   export AWS_LAMBDA_PORT=8080
                   export AWS_LAMBDA_HOST=0.0.0.0
               fi
-              uv run python .scripts/validator/test-plugin-install.py -d ${{ env.PLUGIN_PATH }}
           fi
           cd -
+          uv run python .scripts/validator/test-plugin-install.py -d ${{ env.PLUGIN_PATH }}
 
       - name: Check Packaging
         run: |
