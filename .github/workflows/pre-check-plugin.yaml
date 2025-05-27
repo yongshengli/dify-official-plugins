@@ -41,11 +41,12 @@ jobs:
         uses: astral-sh/setup-uv@v6
         with:
           version: "latest"
+          activate-environment: false
 
       - name: Setup Global Python
         run: |
           uv venv --python 3.12.7
-          uv add requests dify_plugin pytest
+          uv pip install requests dify_plugin pytest
 
       - name: yq - portable yaml processor
         uses: mikefarah/yq@v4.44.5
@@ -100,7 +101,7 @@ jobs:
         run: |
           cd ${{ env.PLUGIN_PATH }}
           if [ -f requirements.txt ]; then
-              uv add packaging
+              uv pip install packaging
               dify_version=$(uv pip list | grep 'dify_plugin' | awk '{print $2}')
               target_version="0.0.1b64"
               result=$(uv run python -c "from packaging.version import Version; print(0 if Version('$dify_version') > Version('$target_version') else 1)")
