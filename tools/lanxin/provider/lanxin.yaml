@@ -1,0 +1,20 @@
+identity:
+  author: liyongsheng
+  name: lanxin
+  label:
+    en_US: LanXin group robot
+    zh_Hans: 蓝信
+    pt_BR: LanXin group robot
+  description:
+    en_US: LanXin group robot
+    zh_Hans: LanXin group robot
+    pt_BR: LanXin group robot
+  icon: icon.svg
+  tags:
+    - social
+    - productivity
+tools:
+  - tools/lanxin_group_bot.yaml
+extra:
+  python:
+    source: provider/lanxin.py
